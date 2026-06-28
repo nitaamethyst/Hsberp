@@ -638,10 +638,10 @@ const OB_DOCS=[
 const ROLE_TABS={
   'Admin':['dash','inbound','outbound','kas','expenses','inventory','warehouse','reports','unpaid','unlunas','ga','sla','supplier','rekap','admin'],
   'Finance':['dash','kas','expenses','inventory','reports','unpaid','unlunas','sla','supplier'],
-  'Purchase-Beli':['dash','inbound','warehouse','sla','supplier'],
-  'Sales-Jual':['dash','outbound','unlunas','sla'],
+  'Purchase-Beli':['dash','inbound','warehouse','inventory','sla','supplier'],
+  'Sales-Jual':['dash','outbound','inventory','unlunas','sla'],
   'Gudang':['dash','inbound','outbound','inventory','warehouse','sla','supplier'],
-  'GA':['dash','ga','supplier','rekap']
+  'GA':['dash','ga','inventory','supplier','rekap']
 };
 
 // ════════════ STATE ════════════
@@ -651,6 +651,10 @@ let realtimeChans=[];
 // ════════════ HELPERS ════════════
 function f(n){return new Intl.NumberFormat('id-ID').format(Math.round(n||0));}
 function fR(n){return 'Rp '+f(n);}
+// Warehouse role is rupiah-blind: sees quantities (kg) but not prices/values.
+function rpBlind(){return S.role==='Gudang';}
+// fRb = rupiah value that is masked for warehouse role
+function fRb(n){return rpBlind()?'•••':fR(n);}
 function pn(s){return parseFloat(String(s||0).replace(/[^\d.]/g,''))||0;}
 function hAgo(ts){return (Date.now()-new Date(ts||Date.now()).getTime())/3600000;}
 function td(){return new Date().toISOString().slice(0,10);}
@@ -871,12 +875,12 @@ function renderDash(){
   const kas=tk.length?tk[0]:null;
   const fundBal=kas?(kas.saldo+kas.petty-expToday):null;
   document.getElementById('kpi').innerHTML=
-    '<div class="card c-blue"><div class="card-t">💵 Fund Balance</div><div class="card-v" style="font-size:15px;">'+(kas?fR(fundBal):'-')+'</div><div class="card-s">'+(kas?'Cash+Petty − today exp.':'Not reported')+'</div></div>'+
+    '<div class="card c-blue"><div class="card-t">💵 Fund Balance</div><div class="card-v" style="font-size:15px;">'+(kas?fRb(fundBal):'-')+'</div><div class="card-s">'+(kas?'Cash+Petty − today exp.':'Not reported')+'</div></div>'+
     '<div class="card c-green"><div class="card-t">📥 Active Purchases</div><div class="card-v">'+ibAct+'</div><div class="card-s">In pipeline</div></div>'+
     '<div class="card c-purple"><div class="card-t">📤 Active Sales</div><div class="card-v">'+obAct+'</div><div class="card-s">To buyer</div></div>'+
     '<div class="card c-cyan"><div class="card-t">⚖️ Net Paid</div><div class="card-v">'+f(ton)+' kg</div><div class="card-s">Today</div></div>'+
-    '<div class="card c-yellow"><div class="card-t">⏳ Unpaid</div><div class="card-v" style="font-size:14px;">'+fR(upV)+'</div><div class="card-s">'+S.ibs.filter(t=>t.stage==='bayar'&&!t.paid&&t.hub===S.hub).length+' memo</div></div>'+
-    '<div class="card" style="border-color:var(--red);background:linear-gradient(135deg,var(--bg2),var(--rd));"><div class="card-t">🧾 Expenses Today</div><div class="card-v" style="font-size:14px;color:var(--red);">'+fR(expToday)+'</div><div class="card-s">Total: '+fR(expTotal)+'</div></div>';
+    '<div class="card c-yellow"><div class="card-t">⏳ Unpaid</div><div class="card-v" style="font-size:14px;">'+fRb(upV)+'</div><div class="card-s">'+S.ibs.filter(t=>t.stage==='bayar'&&!t.paid&&t.hub===S.hub).length+' memo</div></div>'+
+    '<div class="card" style="border-color:var(--red);background:linear-gradient(135deg,var(--bg2),var(--rd));"><div class="card-t">🧾 Expenses Today</div><div class="card-v" style="font-size:14px;color:var(--red);">'+fRb(expToday)+'</div><div class="card-s">Total: '+fRb(expTotal)+'</div></div>';
   const ibTod=S.ibs.filter(t=>t.tanggal===td()&&t.hub===S.hub);
   document.getElementById('dash-ib').innerHTML=ibTod.length?ibTod.map(function(t){return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(30,42,63,.5);cursor:pointer;" onclick="openIb(\''+t.id+'\')"><div><div style="font-size:11px;font-weight:600;">'+t.supplier+'</div><div class="mono" style="font-size:9px;color:var(--text3);">'+t.id+'</div></div><span class="badge '+(ibLate(t)?'b-red':'b-blue')+'">'+(IB_S[ibI(t.stage)]?IB_S[ibI(t.stage)].n:t.stage)+'</span></div>';}).join(''):'<div style="text-align:center;padding:14px;color:var(--text3);font-size:11px;">No purchases today.</div>';
   const obAct2=S.obs.filter(t=>t.stage!=='done'&&t.hub===S.hub);
@@ -905,7 +909,7 @@ function renderPosition(){
    card('🔴 Purchases Unpaid',fR(unpaidBuy),'var(--red)','to suppliers')+
    card('🟢 Sales Unsettled',fR(unsettledSell),'var(--green)','from buyers')+
    '</div>'+
-   '<div class="card mt10" style="border-color:'+(netPL>=0?'var(--green)':'var(--red)')+';background:linear-gradient(135deg,var(--bg2),'+(netPL>=0?'rgba(16,185,129,.08)':'rgba(239,68,68,.08)')+');"><div style="display:flex;justify-content:space-between;align-items:center;"><div><div class="card-t">📈 P&L This Month (MTD)</div><div class="card-s">FIFO COGS − losses − var.cost − expenses</div></div><div class="mono" style="font-size:20px;font-weight:800;color:'+(netPL>=0?'var(--green)':'var(--red)')+';">'+fR(netPL)+'</div></div></div>'+_prepayAlertHtml();
+   (can('Finance')?'<div class="card mt10" style="border-color:'+(netPL>=0?'var(--green)':'var(--red)')+';background:linear-gradient(135deg,var(--bg2),'+(netPL>=0?'rgba(16,185,129,.08)':'rgba(239,68,68,.08)')+');"><div style="display:flex;justify-content:space-between;align-items:center;"><div><div class="card-t">📈 P&L This Month (MTD)</div><div class="card-s">FIFO COGS − losses − var.cost − expenses</div></div><div class="mono" style="font-size:20px;font-weight:800;color:'+(netPL>=0?'var(--green)':'var(--red)')+';">'+fR(netPL)+'</div></div></div>':'')+_prepayAlertHtml();
 }
 function _prepayAlertHtml(){
   let hanging=[];try{hanging=prepayHanging();}catch(e){}
@@ -953,7 +957,7 @@ function renderOb(q){
 }
 function obCard(t){
   const late=obLate(t);
-  return '<div class="txcard '+(late?'late':'outb')+'" onclick="openOb(\''+t.id+'\')"><div class="tx-id">'+t.id+'</div><div class="tx-sup">'+t.buyer+'</div><div class="tx-kg">'+f(t.vol_kg)+' kg · '+fR(t.nilai_kontrak||0)+'</div>'+(late?'<span class="badge b-red" style="margin-top:4px;display:inline-block;">LATE</span>':'')+'</div>';
+  return '<div class="txcard '+(late?'late':'outb')+'" onclick="openOb(\''+t.id+'\')"><div class="tx-id">'+t.id+'</div><div class="tx-sup">'+t.buyer+'</div><div class="tx-kg">'+f(t.vol_kg)+' kg · '+fRb(t.nilai_kontrak||0)+'</div>'+(late?'<span class="badge b-red" style="margin-top:4px;display:inline-block;">LATE</span>':'')+'</div>';
 }
 
 // ════════════ CREATE INBOUND ════════════
@@ -1039,7 +1043,7 @@ function ibAct(t,s){
   if(t.stage==='bayar'){const dpS=pn(t.dp_supplier_amt);const remain=Math.max(0,(t.total_bayar||0)-dpS);return w+'<div class="ir"><div class="ir-l">Supplier</div><div class="ir-v">'+t.supplier+'</div></div><div class="ir"><div class="ir-l">Total Pay</div><div class="ir-v g" style="font-size:15px;">'+fR(t.total_bayar||0)+'</div></div>'+(dpS>0?'<div class="ir"><div class="ir-l">DP Supplier (paid)</div><div class="ir-v" style="color:var(--yellow);">- '+fR(dpS)+'</div></div><div class="ir"><div class="ir-l">Remaining to Pay</div><div class="ir-v g" style="font-size:15px;">'+fR(remain)+'</div></div>':'')+'<div class="frow mt10"><div class="fg"><label>Date Pay<span class="req">*</span></label><input type="date" id="a-tb" value="'+td()+'" '+d+'/></div><div class="fg"><label>Transfer Ref</label><input type="text" id="a-rf" placeholder="Ref-XXXX" '+d+' value="'+(t.ref_bayar||'')+'"/></div></div><div class="upzone '+(t.docs.bukti_bayar?'has':'')+' mt10" onclick="document.getElementById(\'f-bp\').click()"><p>'+(t.docs.bukti_bayar?'✅Payment proof uploaded':'Upload transfer proof')+'</p></div><input type="file" id="f-bp" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ib\',\''+t.id+'\',\'bukti_bayar\')" '+d+'/>';}
   return '';
 }
-function ibInfo(t){return '<div class="ir"><div class="ir-l">ID</div><div class="ir-v mono">'+t.id+'</div></div><div class="ir"><div class="ir-l">Date</div><div class="ir-v">'+t.tanggal+'</div></div><div class="ir"><div class="ir-l">Supplier</div><div class="ir-v">'+t.supplier+'</div></div><div class="ir"><div class="ir-l">Plan</div><div class="ir-v">'+f(t.rencana_beli)+' kg</div></div><div class="ir"><div class="ir-l">Sample Required</div><div class="ir-v '+(t.perlu_sampel?'y':'')+'">'+(t.perlu_sampel?'Yes (>500kg)':'No (≤500kg)')+'</div></div><div class="ir"><div class="ir-l">Lab Result</div><div class="ir-v">'+(t.hasil_sampel||'-')+'</div></div><div class="ir"><div class="ir-l">No. DN</div><div class="ir-v mono">'+(t.no_dn||'-')+'</div></div><div class="ir"><div class="ir-l">No. WS</div><div class="ir-v mono">'+(t.no_ws||'-')+'</div></div><div class="ir"><div class="ir-l">Net</div><div class="ir-v g">'+(t.netto_kg?f(t.netto_kg)+' kg':'-')+'</div></div><div class="ir"><div class="ir-l">Price/kg</div><div class="ir-v">'+(t.harga_aktual?fR(t.harga_aktual):'-')+'</div></div><div class="ir"><div class="ir-l">Total</div><div class="ir-v g">'+(t.total_bayar?fR(t.total_bayar):'-')+'</div></div><div class="ir"><div class="ir-l">No. Memo</div><div class="ir-v mono">'+(t.no_po||'-')+'</div></div>'+(pn(t.dp_supplier_amt)>0?'<div class="ir"><div class="ir-l">DP Supplier</div><div class="ir-v" style="color:var(--yellow);">'+fR(t.dp_supplier_amt)+(t.dp_supplier_paid?' (paid)':' (proposed)')+'</div></div>':'')+'<div class="ir"><div class="ir-l">Status</div><div class="ir-v '+(t.paid?'g':'y')+'">'+(t.paid?'SETTLED':'In Progress')+'</div></div>';}
+function ibInfo(t){return '<div class="ir"><div class="ir-l">ID</div><div class="ir-v mono">'+t.id+'</div></div><div class="ir"><div class="ir-l">Date</div><div class="ir-v">'+t.tanggal+'</div></div><div class="ir"><div class="ir-l">Supplier</div><div class="ir-v">'+t.supplier+'</div></div><div class="ir"><div class="ir-l">Plan</div><div class="ir-v">'+f(t.rencana_beli)+' kg</div></div><div class="ir"><div class="ir-l">Sample Required</div><div class="ir-v '+(t.perlu_sampel?'y':'')+'">'+(t.perlu_sampel?'Yes (>500kg)':'No (≤500kg)')+'</div></div><div class="ir"><div class="ir-l">Lab Result</div><div class="ir-v">'+(t.hasil_sampel||'-')+'</div></div><div class="ir"><div class="ir-l">No. DN</div><div class="ir-v mono">'+(t.no_dn||'-')+'</div></div><div class="ir"><div class="ir-l">No. WS</div><div class="ir-v mono">'+(t.no_ws||'-')+'</div></div><div class="ir"><div class="ir-l">Net</div><div class="ir-v g">'+(t.netto_kg?f(t.netto_kg)+' kg':'-')+'</div></div><div class="ir"><div class="ir-l">Price/kg</div><div class="ir-v">'+(t.harga_aktual?fRb(t.harga_aktual):'-')+'</div></div><div class="ir"><div class="ir-l">Total</div><div class="ir-v g">'+(t.total_bayar?fRb(t.total_bayar):'-')+'</div></div><div class="ir"><div class="ir-l">No. Memo</div><div class="ir-v mono">'+(t.no_po||'-')+'</div></div>'+(pn(t.dp_supplier_amt)>0?'<div class="ir"><div class="ir-l">DP Supplier</div><div class="ir-v" style="color:var(--yellow);">'+fRb(t.dp_supplier_amt)+(t.dp_supplier_paid?' (paid)':' (proposed)')+'</div></div>':'')+'<div class="ir"><div class="ir-l">Status</div><div class="ir-v '+(t.paid?'g':'y')+'">'+(t.paid?'SETTLED':'In Progress')+'</div></div>';}
 function ibDocHtml(t){return IB_DOCS.map(function(dc){const has=dc.ga?(t.gdoc&&t.gdoc.gdrive):t.docs[dc.k];return '<div class="ga-row"><div class="ga-label"><b>'+dc.l+'</b></div><div class="ga-status">'+(dc.ga?'<button class="btn btn-sm '+(has?'btn-green':'btn-yellow')+'" onclick="togGd(\'ib\',\''+t.id+'\')">'+(has?'✅ Uploaded':'Confirm GDrive')+'</button>':(has?'<span class="badge b-green">✅ Yes</span>':'<span class="badge b-gray">Not yet</span>'))+'</div></div>';}).join('');}
 function cN(){const b=pn(document.getElementById('a-brt')?document.getElementById('a-brt').value:0);const ta=pn(document.getElementById('a-tar')?document.getElementById('a-tar').value:0);const el=document.getElementById('a-net');if(el)el.value=Math.max(0,b-ta);}
 function cT(n){const h=pn(document.getElementById('a-ha')?document.getElementById('a-ha').value:0);const el=document.getElementById('calc-t');if(el)el.textContent=fR(n*h);}
@@ -1173,7 +1177,7 @@ function obAct(t,s){
   if(t.stage==='lunas'){const sisa=(t.nilai_kontrak||0)-(t.prepay_amt||0);return w+'<div class="alert a-info">💵 Konfirmasi pelunasan dari buyer.</div><div class="ir"><div class="ir-l">No. Invoice</div><div class="ir-v mono">'+(t.no_invoice||'-')+'</div></div><div class="ir"><div class="ir-l">Remaining Pelunasan</div><div class="ir-v g" style="font-size:15px;">'+fR(sisa)+'</div></div><div class="frow mt10"><div class="fg"><label>Date Settled<span class="req">*</span></label><input type="date" id="ob-ld" value="'+td()+'" '+d+'/></div><div class="fg"><label>Transfer Ref</label><input type="text" id="ob-lr" placeholder="Ref-XXXX" '+d+' value="'+(t.ref_lunas||'')+'"/></div></div><div class="upzone '+(t.docs.bukti_lunas?'has':'')+' mt10" onclick="document.getElementById(\'f-ob-l\').click()"><p>'+(t.docs.bukti_lunas?'✅ Bukti lunasuploaded':'Upload bukti pelunasan')+'</p></div><input type="file" id="f-ob-l" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ob\',\''+t.id+'\',\'bukti_lunas\')" '+d+'/>';}
   return '';
 }
-function obInfo(t){return '<div class="ir"><div class="ir-l">ID</div><div class="ir-v mono">'+t.id+'</div></div><div class="ir"><div class="ir-l">Buyer</div><div class="ir-v">'+t.buyer+'</div></div><div class="ir"><div class="ir-l">No. PO Buyer</div><div class="ir-v mono">'+(t.no_po_buyer||'-')+'</div></div><div class="ir"><div class="ir-l">Volume</div><div class="ir-v g">'+f(t.vol_kg)+' kg</div></div><div class="ir"><div class="ir-l">Contract Value</div><div class="ir-v g">'+fR(t.nilai_kontrak||0)+'</div></div><div class="ir"><div class="ir-l">DP/Prepayment</div><div class="ir-v">'+fR(t.prepay_amt||0)+'</div></div><div class="ir"><div class="ir-l">No. Outbound DO</div><div class="ir-v mono">'+(t.no_do_keluar||'-')+'</div></div><div class="ir"><div class="ir-l">No. Invoice</div><div class="ir-v mono">'+(t.no_invoice||'-')+'</div></div><div class="ir"><div class="ir-l">No. Faktur Pajak</div><div class="ir-v mono">'+(t.no_fp||'-')+'</div></div><div class="ir"><div class="ir-l">Stok Ref</div><div class="ir-v" style="font-size:9px;">'+(t.ib_refs&&t.ib_refs.length?t.ib_refs.join(', '):'-')+'</div></div><div class="ir"><div class="ir-l">Status</div><div class="ir-v '+(t.lunas?'g':'y')+'">'+(t.lunas?'SETTLED':'In Progress')+'</div></div>';}
+function obInfo(t){return '<div class="ir"><div class="ir-l">ID</div><div class="ir-v mono">'+t.id+'</div></div><div class="ir"><div class="ir-l">Buyer</div><div class="ir-v">'+t.buyer+'</div></div><div class="ir"><div class="ir-l">No. PO Buyer</div><div class="ir-v mono">'+(t.no_po_buyer||'-')+'</div></div><div class="ir"><div class="ir-l">Volume</div><div class="ir-v g">'+f(t.vol_kg)+' kg</div></div><div class="ir"><div class="ir-l">Contract Value</div><div class="ir-v g">'+fRb(t.nilai_kontrak||0)+'</div></div><div class="ir"><div class="ir-l">DP/Prepayment</div><div class="ir-v">'+fRb(t.prepay_amt||0)+'</div></div><div class="ir"><div class="ir-l">No. Outbound DO</div><div class="ir-v mono">'+(t.no_do_keluar||'-')+'</div></div><div class="ir"><div class="ir-l">No. Invoice</div><div class="ir-v mono">'+(t.no_invoice||'-')+'</div></div><div class="ir"><div class="ir-l">No. Faktur Pajak</div><div class="ir-v mono">'+(t.no_fp||'-')+'</div></div><div class="ir"><div class="ir-l">Stok Ref</div><div class="ir-v" style="font-size:9px;">'+(t.ib_refs&&t.ib_refs.length?t.ib_refs.join(', '):'-')+'</div></div><div class="ir"><div class="ir-l">Status</div><div class="ir-v '+(t.lunas?'g':'y')+'">'+(t.lunas?'SETTLED':'In Progress')+'</div></div>';}
 function obDocHtml(t){return OB_DOCS.map(function(dc){const has=dc.ga?(t.gdoc&&t.gdoc.gdrive):t.docs[dc.k];return '<div class="ga-row"><div class="ga-label"><b>'+dc.l+'</b></div><div class="ga-status">'+(dc.ga?'<button class="btn btn-sm '+(has?'btn-green':'btn-yellow')+'" onclick="togGd(\'ob\',\''+t.id+'\')">'+(has?'✅ Uploaded':'Confirm GDrive')+'</button>':(has?'<span class="badge b-green">✅ Yes</span>':'<span class="badge b-gray">Not yet</span>'))+'</div></div>';}).join('');}
 
 // ════════════ ADVANCE OUTBOUND ════════════
@@ -1383,9 +1387,9 @@ function _invHubCard(c){
    '<div class="kv" style="font-size:11px;padding:3px 0;"><b style="min-width:120px;color:var(--text2);">Stock In</b><span class="mono" style="color:var(--green);">'+f(c.stockIn)+' kg</span></div>'+
    '<div class="kv" style="font-size:11px;padding:3px 0;"><b style="min-width:120px;color:var(--text2);">Stock Out</b><span class="mono" style="color:var(--purple);">'+f(c.stockOut)+' kg</span></div>'+
    '<div class="kv" style="font-size:12px;padding:4px 0;border-top:1px solid var(--bg3);margin-top:3px;"><b style="min-width:120px;">Current Stock</b><span class="mono" style="font-weight:800;color:var(--cyan);">'+f(c.current)+' kg</span></div>'+
-   '<div class="kv" style="font-size:11px;padding:3px 0;"><b style="min-width:120px;color:var(--text2);">Stock Value</b><span class="mono" style="color:var(--blue);">'+fR(c.stockValue)+'</span></div>'+
-   '<div class="kv" style="font-size:11px;padding:3px 0;"><b style="min-width:120px;color:var(--text2);">Money Spent</b><span class="mono" style="color:var(--red);">'+fR(c.spent)+'</span></div>'+
-   '<div class="kv" style="font-size:11px;padding:3px 0;"><b style="min-width:120px;color:var(--text2);">Committed (unpaid)</b><span class="mono" style="color:var(--yellow);">'+fR(c.committed)+'</span></div>'+
+   '<div class="kv" style="font-size:11px;padding:3px 0;"><b style="min-width:120px;color:var(--text2);">Stock Value</b><span class="mono" style="color:var(--blue);">'+fRb(c.stockValue)+'</span></div>'+
+   '<div class="kv" style="font-size:11px;padding:3px 0;"><b style="min-width:120px;color:var(--text2);">Money Spent</b><span class="mono" style="color:var(--red);">'+fRb(c.spent)+'</span></div>'+
+   '<div class="kv" style="font-size:11px;padding:3px 0;"><b style="min-width:120px;color:var(--text2);">Committed (unpaid)</b><span class="mono" style="color:var(--yellow);">'+fRb(c.committed)+'</span></div>'+
    '</div>';
 }
 function renderInventory(){
@@ -1401,9 +1405,9 @@ function renderInventory(){
   setT('inv-in',f(c.stockIn)+' kg');setT('inv-in-s',c.inbs.length+' purchases');
   setT('inv-out',f(c.stockOut)+' kg');setT('inv-out-s',c.obs.length+' sales');
   setT('inv-cur',f(c.current)+' kg');
-  setT('inv-val',fR(c.stockValue));
-  setT('inv-spent',fR(c.spent));setT('inv-spent-s',c.nPaid+' paid purchases');
-  setT('inv-commit',fR(c.committed));
+  setT('inv-val',fRb(c.stockValue));
+  setT('inv-spent',fRb(c.spent));setT('inv-spent-s',c.nPaid+' paid purchases');
+  setT('inv-commit',fRb(c.committed));
 
   let moves=[];
   c.inbs.forEach(t=>moves.push({date:t.paid_at||t.tanggal,type:'IN',ref:t.supplier+' · '+t.id,in:pn(t.netto_kg),out:0,val:pn(t.netto_kg)*(pn(t.harga_aktual)||pn(t.est_harga))}));
@@ -1419,7 +1423,7 @@ function renderInventory(){
     '<td class="r mono" style="color:var(--green);">'+(m.in?f(m.in):'-')+'</td>'+
     '<td class="r mono" style="color:var(--purple);">'+(m.out?f(m.out):'-')+'</td>'+
     '<td class="r mono" style="font-weight:700;color:'+(bal>=0?'var(--cyan)':'var(--red)')+';">'+f(bal)+'</td>'+
-    '<td class="r mono">'+fR(m.val)+'</td></tr>';
+    '<td class="r mono">'+fRb(m.val)+'</td></tr>';
   }).join('');
 }
 function _obIdx(stage){for(var i=0;i<OB_S.length;i++)if(OB_S[i].id===stage)return i;return -1;}

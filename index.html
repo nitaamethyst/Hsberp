@@ -297,11 +297,16 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
       <div class="fg"><label>Date</label><input type="date" id="kas-tgl"/></div>
       <div class="fg"><label>Cash Balance (Rp)</label><input type="number" id="kas-saldo" placeholder="0"/></div>
       <div class="fg"><label>Petty Cash (Rp)</label><input type="number" id="kas-petty" placeholder="0"/></div>
+    </div>
+    <div class="sect-t mt10" style="border:none;">📎 Petty Cash Proof <span class="req">*</span> <span style="font-size:10px;color:var(--text3);font-weight:400;">(mandatory — bukti petty cash)</span></div>
+    <div class="upzone" id="kas-upzone" onclick="document.getElementById('f-kas-proof').click()"><p id="kas-proof-label">Upload petty cash receipt / bukti (image or PDF)</p></div>
+    <input type="file" id="f-kas-proof" accept="image/*,.pdf" style="display:none" onchange="pickKasProof(event)"/>
+    <div class="frow mt10">
       <div class="fg" style="justify-content:flex-end;"><label>&nbsp;</label><button class="btn btn-green" onclick="submitKas()">Save</button></div>
     </div>
   </div>
   <div class="sect-t">Cash Report History</div>
-  <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Date</th><th>Hub</th><th>Cash</th><th>Petty</th><th>Total</th><th>Purchases Paid</th><th>Sales Received</th><th>Expenses</th><th>Est. Remaining</th><th>By</th></tr></thead><tbody id="kas-tb"></tbody></table></div>
+  <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Date</th><th>Hub</th><th>Cash</th><th>Petty</th><th>Total</th><th>Purchases Paid</th><th>Sales Received</th><th>Expenses</th><th>Est. Remaining</th><th>By</th><th>Proof</th></tr></thead><tbody id="kas-tb"></tbody></table></div>
 </div>
 
 <div id="tab-expenses" style="display:none">
@@ -336,13 +341,18 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
     </div>
     <div class="frow">
       <div class="fg" style="flex:2;"><label>Description</label><input type="text" id="exp-desc" placeholder="Optional notes..."/></div>
+    </div>
+    <div class="sect-t mt10" style="border:none;">📎 Receipt / Proof <span class="req">*</span> <span style="font-size:10px;color:var(--text3);font-weight:400;">(mandatory — kwitansi / bukti bayar)</span></div>
+    <div class="upzone" id="exp-upzone" onclick="document.getElementById('f-exp-proof').click()"><p id="exp-proof-label">Upload receipt / bukti (image or PDF)</p></div>
+    <input type="file" id="f-exp-proof" accept="image/*,.pdf" style="display:none" onchange="pickExpProof(event)"/>
+    <div class="frow mt10">
       <div class="fg" style="justify-content:flex-end;"><label>&nbsp;</label><button class="btn btn-green" onclick="submitExpense()">Save Expense</button></div>
     </div>
   </div>
   <div class="sect-t">Expense History
     <select class="ctrl" id="exp-fcat" onchange="renderExpenses()"><option value="">All Categories</option></select>
   </div>
-  <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Date</th><th>Hub</th><th>Type</th><th>Category</th><th>Description</th><th>Amount</th><th>By</th><th>Action</th></tr></thead><tbody id="exp-tb"></tbody></table></div>
+  <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Date</th><th>Hub</th><th>Type</th><th>Category</th><th>Description</th><th>Amount</th><th>By</th><th>Proof</th><th>Action</th></tr></thead><tbody id="exp-tb"></tbody></table></div>
 </div>
 
 <div id="tab-inventory" style="display:none">
@@ -1277,23 +1287,25 @@ async function submitKas(){
   if(!can('Finance')){toast('Finance/Admin only','err');return;}
   const tgl=document.getElementById('kas-tgl').value;const saldo=pn(document.getElementById('kas-saldo').value);const petty=pn(document.getElementById('kas-petty').value);
   if(!tgl){toast('Date required','err');return;}
-  const {data,error}=await sb.from('kas_reports').insert({tgl:tgl,hub:S.hub,saldo:saldo,petty:petty,by_user:S.nama}).select();
+  if(!_kasProof){toast('Petty cash proof is mandatory — please upload bukti','err');return;}
+  const {data,error}=await sb.from('kas_reports').insert({tgl:tgl,hub:S.hub,saldo:saldo,petty:petty,by_user:S.nama,proof_name:_kasProof.name,proof_data:_kasProof.data}).select();
   if(error){toast('Save failed: '+error.message,'err');return;}
   if(data&&data[0])S.kas.unshift(data[0]);
   toast('Cash report saved: '+fR(saldo+petty));
+  _kasProof=null;const _kl=document.getElementById('kas-proof-label');if(_kl)_kl.textContent='Upload petty cash receipt / bukti (image or PDF)';const _kz=document.getElementById('kas-upzone');if(_kz)_kz.classList.remove('has');const _kf=document.getElementById('f-kas-proof');if(_kf)_kf.value='';
   renderKasH();renderDash();
 }
 function renderKasH(){
   const reports=S.kas.filter(k=>k.hub===S.hub);
   const tb=document.getElementById('kas-tb');
-  if(!reports.length){tb.innerHTML='<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text3);">No reports yet.</td></tr>';return;}
+  if(!reports.length){tb.innerHTML='<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--text3);">No reports yet.</td></tr>';return;}
   tb.innerHTML=reports.map(function(k){
     const total=k.saldo+k.petty;
     const ibPaid=S.ibs.filter(t=>t.paid_at&&t.paid_at.indexOf(k.tgl)===0&&t.hub===k.hub).reduce((a,t)=>a+pn(t.total_bayar),0);
     const obRec=S.obs.filter(t=>t.lunas_at&&t.lunas_at.indexOf(k.tgl)===0&&t.hub===k.hub).reduce((a,t)=>a+pn(t.nilai_kontrak),0);
     const expDay=S.expenses.filter(e=>e.hub===k.hub&&e.tgl===k.tgl).reduce((a,e)=>a+pn(e.amount),0);
     const sisa=total-ibPaid+obRec-expDay;
-    return '<tr><td>'+k.tgl+'</td><td>'+k.hub+'</td><td class="mono">'+fR(k.saldo)+'</td><td class="mono">'+fR(k.petty)+'</td><td class="mono" style="color:var(--blue);">'+fR(total)+'</td><td class="mono" style="color:var(--red);">'+fR(ibPaid)+'</td><td class="mono" style="color:var(--green);">'+fR(obRec)+'</td><td class="mono" style="color:var(--red);">'+fR(expDay)+'</td><td class="mono" style="color:'+(sisa>=0?'var(--green)':'var(--red)')+';">'+fR(sisa)+'</td><td style="font-size:10px;color:var(--text3);">'+(k.by_user||'-')+'</td></tr>';
+    return '<tr><td>'+k.tgl+'</td><td>'+k.hub+'</td><td class="mono">'+fR(k.saldo)+'</td><td class="mono">'+fR(k.petty)+'</td><td class="mono" style="color:var(--blue);">'+fR(total)+'</td><td class="mono" style="color:var(--red);">'+fR(ibPaid)+'</td><td class="mono" style="color:var(--green);">'+fR(obRec)+'</td><td class="mono" style="color:var(--red);">'+fR(expDay)+'</td><td class="mono" style="color:'+(sisa>=0?'var(--green)':'var(--red)')+';">'+fR(sisa)+'</td><td style="font-size:10px;color:var(--text3);">'+(k.by_user||'-')+'</td><td>'+(k.proof_data?'<button class="btn btn-ghost btn-sm" onclick="viewProof(\'kas\','+k.id+')">View</button>':'<span style="color:var(--red);font-size:10px;">none</span>')+'</td></tr>';
   }).join('');
 }
 
@@ -1308,6 +1320,27 @@ function expCatSuggest(){
   dl.innerHTML=arr.map(c=>'<option>'+c+'</option>').join('');
 }
 
+
+let _expProof=null,_kasProof=null;
+function _readProof(file,cb){
+  if(file.size>5*1024*1024){toast('File too large (max 5MB)','err');return;}
+  const r=new FileReader();r.onload=function(e){cb({name:file.name,data:e.target.result});};r.readAsDataURL(file);
+}
+function pickExpProof(ev){const f=ev.target.files[0];if(!f)return;_readProof(f,function(p){_expProof=p;const l=document.getElementById('exp-proof-label');if(l)l.textContent='✓ '+p.name;const z=document.getElementById('exp-upzone');if(z)z.classList.add('has');});}
+function pickKasProof(ev){const f=ev.target.files[0];if(!f)return;_readProof(f,function(p){_kasProof=p;const l=document.getElementById('kas-proof-label');if(l)l.textContent='✓ '+p.name;const z=document.getElementById('kas-upzone');if(z)z.classList.add('has');});}
+
+
+function viewProof(type,id){
+  const arr=type==='exp'?S.expenses:S.kas;const r=arr.find(x=>x.id===id);if(!r||!r.proof_data){toast('No proof','err');return;}
+  const isPdf=(r.proof_name||'').toLowerCase().endsWith('.pdf')||String(r.proof_data).indexOf('application/pdf')>-1;
+  document.getElementById('m-title').textContent='Proof — '+(r.proof_name||'');
+  document.getElementById('m-body').innerHTML = isPdf
+    ? '<iframe src="'+r.proof_data+'" style="width:100%;height:70vh;border:none;border-radius:8px;"></iframe>'
+    : '<img src="'+r.proof_data+'" style="width:100%;border-radius:8px;"/>';
+  document.getElementById('m-foot-r').innerHTML='<button class="btn btn-ghost" onclick="closeModal()">Close</button>';
+  showModal();
+}
+
 async function submitExpense(){
   if(!can('Finance')){toast('Finance/Admin only','err');return;}
   const tgl=document.getElementById('exp-tgl').value;
@@ -1318,11 +1351,13 @@ async function submitExpense(){
   if(!tgl){toast('Date required','err');return;}
   if(!cat){toast('Category required','err');return;}
   if(!amt){toast('Amount required','err');return;}
-  const {data,error}=await sb.from('expenses').insert({tgl:tgl,hub:S.hub,category:cat,cost_type:ctype,description:desc,amount:amt,by_user:S.nama}).select();
+  if(!_expProof){toast('Receipt/proof is mandatory — please upload kwitansi/bukti','err');return;}
+  const {data,error}=await sb.from('expenses').insert({tgl:tgl,hub:S.hub,category:cat,cost_type:ctype,description:desc,amount:amt,by_user:S.nama,proof_name:_expProof.name,proof_data:_expProof.data}).select();
   if(error){toast('Save failed: '+error.message,'err');return;}
   if(data&&data[0])S.expenses.unshift(data[0]);
   toast('Expense saved: '+fR(amt));
   document.getElementById('exp-amt').value='';document.getElementById('exp-desc').value='';
+  _expProof=null;const _el=document.getElementById('exp-proof-label');if(_el)_el.textContent='Upload receipt / bukti (image or PDF)';const _ez=document.getElementById('exp-upzone');if(_ez)_ez.classList.remove('has');const _ef=document.getElementById('f-exp-proof');if(_ef)_ef.value='';
   renderExpenses();renderDash();
 }
 async function deleteExpense(id){
@@ -1356,10 +1391,10 @@ function renderExpenses(){
   const ec=document.getElementById('exp-cnt');if(ec)ec.textContent=list.length+' entries';
   const eto=document.getElementById('exp-today');if(eto)eto.textContent=fR(today);
   const tb=document.getElementById('exp-tb');if(!tb)return;
-  if(!list.length){tb.innerHTML='<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text3);">No expenses recorded.</td></tr>';return;}
+  if(!list.length){tb.innerHTML='<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text3);">No expenses recorded.</td></tr>';return;}
   tb.innerHTML=list.map(function(e){
     const ct=(e.cost_type||'Fixed');const ctb=ct==='Variable'?'<span class="badge" style="background:var(--cyan);color:#000;">Variable</span>':'<span class="badge" style="background:var(--purple);color:#fff;">Fixed</span>';
-    return '<tr><td>'+e.tgl+'</td><td>'+e.hub+'</td><td>'+ctb+'</td><td><span class="badge b-yellow">'+e.category+'</span></td><td style="font-size:11px;">'+(e.description||'-')+'</td><td class="mono" style="color:var(--red);font-weight:700;">'+fR(e.amount)+'</td><td style="font-size:10px;color:var(--text3);">'+(e.by_user||'-')+'</td><td><button class="btn btn-red btn-sm" onclick="deleteExpense('+e.id+')" '+(!can('Finance')?'disabled':'')+'>Delete</button></td></tr>';
+    return '<tr><td>'+e.tgl+'</td><td>'+e.hub+'</td><td>'+ctb+'</td><td><span class="badge b-yellow">'+e.category+'</span></td><td style="font-size:11px;">'+(e.description||'-')+'</td><td class="mono" style="color:var(--red);font-weight:700;">'+fR(e.amount)+'</td><td style="font-size:10px;color:var(--text3);">'+(e.by_user||'-')+'</td><td>'+(e.proof_data?'<button class="btn btn-ghost btn-sm" onclick="viewProof(\'exp\','+e.id+')">View</button>':'<span style="color:var(--red);font-size:10px;">none</span>')+'</td><td><button class="btn btn-red btn-sm" onclick="deleteExpense('+e.id+')" '+(!can('Finance')?'disabled':'')+'>Delete</button></td></tr>';
   }).join('');
 }
 

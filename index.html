@@ -203,7 +203,7 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
     <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"/>
     <button class="login-btn" id="login-btn" onclick="doLogin()">Login</button>
     <div class="login-err" id="login-err"></div>
-    <div class="login-foot">Contact Admin/GM if you forgot your account</div>
+    <div class="login-foot"><a href="#" onclick="forgotPass();return false;" style="color:var(--green);text-decoration:none;font-weight:600;">Lupa password? / Forgot password?</a></div>
   </div>
 </div>
 
@@ -221,7 +221,7 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
       <span style="font-size:18px;">🔔</span>
       <span id="notif-count" style="display:none;position:absolute;top:-6px;right:-8px;background:var(--red);color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:8px;align-items:center;justify-content:center;padding:0 3px;"></span>
     </div>
-    <div class="user-chip"><span id="userName">—</span><span class="role-tag" id="userRole">—</span><button class="logout-btn" onclick="doLogout()">Logout</button></div>
+    <div class="user-chip"><span id="userName">—</span><span class="role-tag" id="userRole">—</span><button class="logout-btn" style="background:var(--bg4);color:var(--text2);margin-right:4px;" onclick="openChangePass()" title="Change password / Ganti password">🔑</button><button class="logout-btn" onclick="doLogout()">Logout</button></div>
     <div class="clk" id="clk"></div>
   </div>
   <div id="notif-panel" style="display:none;position:absolute;top:54px;right:12px;width:320px;max-width:90vw;max-height:60vh;overflow-y:auto;background:var(--bg2);border:1px solid var(--bg3);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:50;">
@@ -678,10 +678,71 @@ function obLate(t){if(t.stage==='done')return false;const s=OB_S[obI(t.stage)];r
 
 // ════════════ AUTH ════════════
 async function init(){
+  // Jika datang dari link reset password, tampilkan form set password baru (jangan auto-login).
+  const _hash=window.location.hash||'';
+  const _isRecovery=_hash.indexOf('type=recovery')>-1;
   const {data:{session}}=await sb.auth.getSession();
+  if(_isRecovery){
+    document.getElementById('loading').style.display='none';
+    document.getElementById('login').style.display='flex';
+    setTimeout(function(){openResetForm();},500);
+    return;
+  }
   if(session){await afterLogin(session);}
   else{document.getElementById('loading').style.display='none';document.getElementById('login').style.display='flex';}
 }
+
+async function forgotPass(){
+  const email=(document.getElementById('login-email').value||'').trim();
+  const err=document.getElementById('login-err');
+  if(!email){err.textContent='Isi email dulu, lalu klik Lupa password. / Enter your email first, then click Forgot password.';err.className='login-err show';return;}
+  err.className='login-err';
+  try{
+    const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin+window.location.pathname});
+    if(error){err.textContent='Gagal / Failed: '+error.message;err.className='login-err show';return;}
+    err.style.background='rgba(16,185,129,.1)';err.style.borderColor='var(--green)';err.style.color='var(--green)';
+    err.textContent='Link reset password sudah dikirim ke '+email+'. Cek email Anda (termasuk folder Spam). / A reset link was sent to '+email+'. Check your email (including Spam).';
+    err.className='login-err show';
+  }catch(e){err.textContent='Error: '+e.message;err.className='login-err show';}
+}
+
+// Setelah user klik link reset di email, mereka kembali dengan sesi recovery.
+// Deteksi & tampilkan form set password baru.
+async function checkRecovery(){
+  try{
+    const hash=window.location.hash||'';
+    if(hash.indexOf('type=recovery')>-1||hash.indexOf('access_token')>-1){
+      // beri waktu supabase memproses sesi dari URL
+      setTimeout(function(){openResetForm();},600);
+    }
+  }catch(e){}
+}
+function openResetForm(){
+  document.getElementById('m-title').textContent='Set New Password / Buat Password Baru';
+  document.getElementById('m-body').innerHTML=
+    '<div class="mut" style="font-size:11px;margin-bottom:10px;">Anda datang dari link reset. Buat password baru. Minimal 6 karakter. / You arrived from a reset link. Set a new password. Minimum 6 characters.</div>'+
+    '<div class="fg"><label>New Password / Password Baru</label><input type="password" id="rp-new" placeholder="Minimal 6 karakter"/></div>'+
+    '<div class="fg mt10"><label>Confirm / Ulangi</label><input type="password" id="rp-conf" placeholder="Ketik ulang"/></div>'+
+    '<div id="rp-msg" class="mut" style="font-size:11px;margin-top:8px;"></div>';
+  document.getElementById('m-foot-l').innerHTML='';
+  document.getElementById('m-foot-r').innerHTML='<button class="btn btn-green" onclick="doResetPass()">Save / Simpan</button>';
+  showModal();
+}
+async function doResetPass(){
+  const np=document.getElementById('rp-new').value;const cf=document.getElementById('rp-conf').value;
+  const msg=document.getElementById('rp-msg');msg.style.color='var(--red)';
+  if(!np||np.length<6){msg.textContent='Password minimal 6 karakter. / Min 6 characters.';return;}
+  if(np!==cf){msg.textContent='Password tidak sama. / Passwords do not match.';return;}
+  msg.style.color='var(--text3)';msg.textContent='Menyimpan... / Saving...';
+  try{
+    const {error}=await sb.auth.updateUser({password:np});
+    if(error){msg.style.color='var(--red)';msg.textContent='Gagal / Failed: '+error.message;return;}
+    closeModal();toast('Password baru tersimpan. Silakan login. / New password saved. Please log in.');
+    try{history.replaceState(null,'',window.location.pathname);}catch(e){}
+  }catch(e){msg.style.color='var(--red)';msg.textContent='Error: '+e.message;}
+}
+
+
 async function doLogin(){
   const email=document.getElementById('login-email').value.trim();
   const pass=document.getElementById('login-pass').value;
@@ -727,6 +788,35 @@ async function afterLogin(session){
   setInterval(()=>{const c=document.getElementById('clk');if(c)c.textContent=new Date().toLocaleTimeString('en-US');},1000);
   setInterval(refAll,30000);
 }
+
+function openChangePass(){
+  document.getElementById('m-title').textContent='Change Password / Ganti Password';
+  document.getElementById('m-body').innerHTML=
+    '<div class="mut" style="font-size:11px;margin-bottom:10px;">Ganti password akun Anda sendiri. Minimal 6 karakter. / Change your own account password. Minimum 6 characters.</div>'+
+    '<div class="fg"><label>New Password / Password Baru</label><input type="password" id="cp-new" placeholder="Minimal 6 karakter" autocomplete="new-password"/></div>'+
+    '<div class="fg mt10"><label>Confirm Password / Ulangi Password</label><input type="password" id="cp-conf" placeholder="Ketik ulang password baru" autocomplete="new-password"/></div>'+
+    '<div id="cp-msg" class="mut" style="font-size:11px;margin-top:8px;"></div>';
+  document.getElementById('m-foot-l').innerHTML='';
+  document.getElementById('m-foot-r').innerHTML='<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-green" onclick="doChangePass()">Save / Simpan</button>';
+  showModal();
+}
+async function doChangePass(){
+  const np=document.getElementById('cp-new').value;
+  const cf=document.getElementById('cp-conf').value;
+  const msg=document.getElementById('cp-msg');
+  msg.style.color='var(--red)';
+  if(!np||np.length<6){msg.textContent='Password minimal 6 karakter. / Password must be at least 6 characters.';return;}
+  if(np!==cf){msg.textContent='Password tidak sama. / Passwords do not match.';return;}
+  msg.style.color='var(--text3)';msg.textContent='Menyimpan... / Saving...';
+  try{
+    const {error}=await sb.auth.updateUser({password:np});
+    if(error){msg.style.color='var(--red)';msg.textContent='Gagal / Failed: '+error.message;return;}
+    closeModal();
+    toast('Password berhasil diganti / Password changed');
+  }catch(e){msg.style.color='var(--red)';msg.textContent='Error: '+e.message;}
+}
+
+
 async function doLogout(){
   realtimeChans.forEach(c=>sb.removeChannel(c));realtimeChans=[];
   await sb.auth.signOut();

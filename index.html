@@ -296,11 +296,11 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
     <div class="frow mt10">
       <div class="fg"><label>Date</label><input type="date" id="kas-tgl"/></div>
       <div class="fg"><label>Cash Balance (Rp)</label><input type="number" id="kas-saldo" placeholder="0"/></div>
-      <div class="fg"><label>Petty Cash (Rp)</label><input type="number" id="kas-petty" placeholder="0"/></div>
     </div>
-    <div class="sect-t mt10" style="border:none;">📎 Petty Cash Proof <span class="req">*</span> <span style="font-size:10px;color:var(--text3);font-weight:400;">(mandatory — bukti petty cash)</span></div>
-    <div class="upzone" id="kas-upzone" onclick="document.getElementById('f-kas-proof').click()"><p id="kas-proof-label">Upload petty cash receipt / bukti (image or PDF)</p></div>
-    <input type="file" id="f-kas-proof" accept="image/*,.pdf" style="display:none" onchange="pickKasProof(event)"/>
+    <div class="sect-t mt10" style="border:none;">💵 Rincian Petty Cash <span style="font-size:10px;color:var(--text3);font-weight:400;">/ Petty cash items — tiap item wajib bukti / each item requires proof</span></div>
+    <div id="petty-items"></div>
+    <button class="btn btn-ghost btn-sm mt10" onclick="addPettyItem()">+ Tambah Item / Add Item</button>
+    <div class="mut" style="font-size:11px;margin-top:6px;">Total Petty: <span class="mono" id="petty-total" style="color:var(--yellow);">Rp 0</span></div>
     <div class="frow mt10">
       <div class="fg" style="justify-content:flex-end;"><label>&nbsp;</label><button class="btn btn-green" onclick="submitKas()">Save</button></div>
     </div>
@@ -507,6 +507,11 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
     <div style="font-size:15px;font-weight:700;">Unpaid — Purchasing</div>
     <div class="mono" style="font-size:13px;color:var(--yellow);" id="total-unpaid"></div>
   </div>
+  <div class="sect-t">💵 Prepayment / DP ke Supplier <span style="font-size:10px;color:var(--text3);font-weight:400;">/ Down payment to supplier</span>
+    <span class="mono" style="font-size:12px;color:var(--yellow);float:right;" id="total-prepay-buy"></span>
+  </div>
+  <div id="prepay-buy-list" style="margin-bottom:18px;"></div>
+  <div class="sect-t">🧾 Memo Belum Dibayar <span style="font-size:10px;color:var(--text3);font-weight:400;">/ Unpaid purchase memos</span></div>
   <div id="unpaid-list"></div>
 </div>
 
@@ -1002,7 +1007,7 @@ function renderPosition(){
   // MTD P&L net position
   let netPL=0;try{const m=new Date().toISOString().slice(0,7);netPL=_plData(hub,m).netProfit;}catch(e){}
   const card=(label,val,color,sub)=>'<div class="card" style="padding:11px;border-color:'+color+';"><div class="card-t" style="font-size:9px;">'+label+'</div><div class="mono" style="font-size:14px;font-weight:800;color:'+color+';">'+val+'</div>'+(sub?'<div class="card-s" style="font-size:9px;">'+sub+'</div>':'')+'</div>';
-  el.innerHTML='<div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;margin-bottom:6px;">📍 Current Position — '+hub+' (live)</div>'+
+  el.innerHTML=proofLockBanner()+'<div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;margin-bottom:6px;">📍 Current Position — '+hub+' (live)</div>'+
    '<div class="g4">'+
    card('📦 Stock on Hand',f(stockKg)+' kg',(stockKg>=0?'var(--cyan)':'var(--red)'),fR(stockVal))+
    card('💵 Prepayment Out',fR(prepayOut),'var(--yellow)','DP committed')+
@@ -1164,7 +1169,7 @@ async function advIb(id){
   else if(t.stage==='upload'){const sh=document.getElementById('a-sh').value;if(!sh){toast('Confirm document share','err');return;}t.shared_wa=sh;mv('memo','Docs generated & shared');}
   else if(t.stage==='memo'){const po=document.getElementById('a-po').value.trim();const h=pn(document.getElementById('a-ha').value);if(!po||!h){toast('Memo No. & price required','err');return;}if(!t.docs.nota_kwitansi){toast('Supplier-signed note/receipt scan required','err');return;}if(!priceAllowed(h)){toast('Price '+fR(h)+'/kg exceeds cap '+fR(priceCap())+' — needs GM/Admin approval','err');return;}const _mg=marginCheck(t.hub,h);if(_mg.warn&&_mg.sell>0){if(!confirm('⚠️ Thin/negative margin!\nBuy: '+fR(h)+'/kg\nRef sell: '+fR(_mg.sell)+'/kg\nMargin: '+_mg.pct.toFixed(1)+'% (min '+_mg.minPct+'%)\n\nProceed anyway?'))return;await audit('LOW_MARGIN','inbounds',t.id,{buy:h,sell:_mg.sell,pct:_mg.pct.toFixed(1)},null);}if(priceCap()>0&&h>priceCap()){t.price_override_by=S.nama;t.price_override_at=new Date().toISOString();await audit('PRICE_OVERRIDE','inbounds',t.id,{price:h,cap:priceCap()},h);}t.no_po=po;t.harga_aktual=h;t.total_bayar=(t.netto_kg||0)*h;t.met_bayar=document.getElementById('a-mb').value;mv('verif','Memo Payment: '+po+', Total: '+fR(t.total_bayar));}
   else if(t.stage==='verif'){const v=document.getElementById('a-vf').value;if(!v){toast('Select decision','err');return;}if(v==='Hold'){t.held_reason=document.getElementById('a-vn').value.trim()||'Finance: tidak sesuai';t.log.push({s:'verif',by:S.nama,at:new Date().toISOString(),n:'Held: '+t.held_reason});t.stage='ditahan';await saveIb(t);closeModal();toast('Held Finance','err');return;}t.verified=true;mv('bayar','Terverifikasi');}
-  else if(t.stage==='bayar'){const tb=document.getElementById('a-tb').value;if(!tb){toast('Payment date required','err');return;}if(t.paid){toast('Already paid - double payment blocked','err');return;}if(pn(t.netto_kg)<=0){toast('Cannot pay: goods not yet weighed/received','err');return;}const wsRef=t.no_ws||'';if(wsRef){const dup=S.ibs.find(x=>x.id!==t.id&&x.paid&&x.no_ws&&x.no_ws===wsRef&&x.hub===t.hub);if(dup){toast('WS '+wsRef+' already paid in '+dup.id+' - blocked','err');return;}}const _dpS=pn(t.dp_supplier_amt);t.final_paid=Math.max(0,(t.total_bayar||0)-_dpS);if(_dpS>0)t.dp_supplier_paid=true;t.ref_bayar=document.getElementById('a-rf').value.trim();t.paid=true;t.paid_at=new Date().toISOString();t.pay_locked=true;t.pay_ws_ref=wsRef;t.stage='done';t.log.push({s:'done',by:S.nama,at:new Date().toISOString(),n:'SETTLED Ref: '+(t.ref_bayar||'-')+(_dpS>0?' (DP '+fR(_dpS)+' netted, paid '+fR(t.final_paid)+')':'')});await audit('PAY','inbounds',t.id,{ws:wsRef,supplier:t.supplier,dp:_dpS,net:t.final_paid},pn(t.total_bayar));await saveIb(t);closeModal();toast('Payment confirmed (logged)!');return;}
+  else if(t.stage==='bayar'){if(!financeProofGate())return;const tb=document.getElementById('a-tb').value;if(!tb){toast('Payment date required','err');return;}if(t.paid){toast('Already paid - double payment blocked','err');return;}if(pn(t.netto_kg)<=0){toast('Cannot pay: goods not yet weighed/received','err');return;}const wsRef=t.no_ws||'';if(wsRef){const dup=S.ibs.find(x=>x.id!==t.id&&x.paid&&x.no_ws&&x.no_ws===wsRef&&x.hub===t.hub);if(dup){toast('WS '+wsRef+' already paid in '+dup.id+' - blocked','err');return;}}const _dpS=pn(t.dp_supplier_amt);t.final_paid=Math.max(0,(t.total_bayar||0)-_dpS);if(_dpS>0)t.dp_supplier_paid=true;t.ref_bayar=document.getElementById('a-rf').value.trim();t.paid=true;t.paid_at=new Date().toISOString();t.pay_locked=true;t.pay_ws_ref=wsRef;t.stage='done';t.log.push({s:'done',by:S.nama,at:new Date().toISOString(),n:'SETTLED Ref: '+(t.ref_bayar||'-')+(_dpS>0?' (DP '+fR(_dpS)+' netted, paid '+fR(t.final_paid)+')':'')});await audit('PAY','inbounds',t.id,{ws:wsRef,supplier:t.supplier,dp:_dpS,net:t.final_paid},pn(t.total_bayar));await saveIb(t);closeModal();toast('Payment confirmed (logged)!');return;}
   await saveIb(t);closeModal();toast('Stage advanced');
 }
 
@@ -1373,19 +1378,65 @@ function renderSupplierLab(){
 }
 
 // ════════════ KAS ════════════
+let _pettyItems=[];  // {note, amount, proof_name, proof_data}
+function renderPettyItems(){
+  const el=document.getElementById('petty-items');if(!el)return;
+  if(!_pettyItems.length){el.innerHTML='<div class="mut" style="font-size:11px;padding:8px 0;">Belum ada item. Klik + Tambah Item. / No items yet. Click + Add Item.</div>';}
+  else{
+    el.innerHTML=_pettyItems.map(function(it,i){
+      return '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;background:var(--bg2);padding:8px;border-radius:8px;">'+
+        '<input type="text" placeholder="Keterangan / Note" value="'+(it.note||'').replace(/"/g,'&quot;')+'" oninput="_pettyItems['+i+'].note=this.value" style="flex:2;min-width:120px;"/>'+
+        '<input type="number" placeholder="Rp" value="'+(it.amount||'')+'" oninput="_pettyItems['+i+'].amount=this.value;updatePettyTotal()" style="flex:1;min-width:80px;"/>'+
+        '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'fpetty-'+i+'\').click()">'+(it.proof_data?'✓ Bukti':'📎 Bukti')+'</button>'+
+        '<input type="file" id="fpetty-'+i+'" accept="image/*,.pdf" style="display:none" onchange="pickPettyProof(event,'+i+')"/>'+
+        '<button class="btn btn-red btn-sm" onclick="removePettyItem('+i+')">✕</button>'+
+        '</div>';
+    }).join('');
+  }
+  updatePettyTotal();
+}
+function addPettyItem(){_pettyItems.push({note:'',amount:'',proof_name:null,proof_data:null});renderPettyItems();}
+function removePettyItem(i){_pettyItems.splice(i,1);renderPettyItems();}
+function pickPettyProof(ev,i){const f=ev.target.files[0];if(!f)return;_readProof(f,function(p){_pettyItems[i].proof_name=p.name;_pettyItems[i].proof_data=p.data;renderPettyItems();});}
+function updatePettyTotal(){const t=_pettyItems.reduce((a,it)=>a+pn(it.amount),0);const el=document.getElementById('petty-total');if(el)el.textContent=fR(t);}
+
 async function submitKas(){
   if(!can('Finance')){toast('Finance/Admin only','err');return;}
-  const tgl=document.getElementById('kas-tgl').value;const saldo=pn(document.getElementById('kas-saldo').value);const petty=pn(document.getElementById('kas-petty').value);
+  if(!financeProofGate())return;
+  const tgl=document.getElementById('kas-tgl').value;const saldo=pn(document.getElementById('kas-saldo').value);
   if(!tgl){toast('Date required','err');return;}
-  if(!_kasProof){toast('Petty cash proof is mandatory — please upload bukti','err');return;}
-  const {data,error}=await sb.from('kas_reports').insert({tgl:tgl,hub:S.hub,saldo:saldo,petty:petty,by_user:S.nama,proof_name:_kasProof.name,proof_data:_kasProof.data}).select();
+  // validasi tiap item petty wajib bukti
+  const items=_pettyItems.filter(it=>pn(it.amount)>0||((it.note||'').trim()));
+  for(var i=0;i<items.length;i++){
+    if(pn(items[i].amount)<=0){toast('Item '+(i+1)+': jumlah wajib diisi. / amount required.','err');return;}
+    if(!items[i].proof_data){toast('Item '+(i+1)+' ('+(items[i].note||'')+'): bukti wajib. / proof required.','err');return;}
+  }
+  const petty=items.reduce((a,it)=>a+pn(it.amount),0);
+  const payload={tgl:tgl,hub:S.hub,saldo:saldo,petty:petty,by_user:S.nama,petty_items:items};
+  // sertakan bukti pertama sebagai proof utama (kompatibilitas)
+  if(items.length){payload.proof_name=items[0].proof_name;payload.proof_data=items[0].proof_data;}
+  const {data,error}=await sb.from('kas_reports').insert(payload).select();
   if(error){toast('Save failed: '+error.message,'err');return;}
   if(data&&data[0])S.kas.unshift(data[0]);
   toast('Cash report saved: '+fR(saldo+petty));
-  _kasProof=null;const _kl=document.getElementById('kas-proof-label');if(_kl)_kl.textContent='Upload petty cash receipt / bukti (image or PDF)';const _kz=document.getElementById('kas-upzone');if(_kz)_kz.classList.remove('has');const _kf=document.getElementById('f-kas-proof');if(_kf)_kf.value='';
+  _pettyItems=[];renderPettyItems();
+  document.getElementById('kas-saldo').value='';
   renderKasH();renderDash();
 }
+
+function viewPettyProof(kasId,idx){
+  const k=S.kas.find(x=>String(x.id)===String(kasId));if(!k||!k.petty_items||!k.petty_items[idx]){toast('No proof','err');return;}
+  const it=k.petty_items[idx];if(!it.proof_data){toast('No proof','err');return;}
+  const isPdf=(it.proof_name||'').toLowerCase().endsWith('.pdf');
+  document.getElementById('m-title').textContent='Bukti Petty: '+(it.note||'')+' — '+fR(pn(it.amount));
+  document.getElementById('m-body').innerHTML=isPdf?'<iframe src="'+it.proof_data+'" style="width:100%;height:70vh;border:none;border-radius:8px;"></iframe>':'<img src="'+it.proof_data+'" style="width:100%;border-radius:8px;"/>';
+  document.getElementById('m-foot-l').innerHTML='';
+  document.getElementById('m-foot-r').innerHTML='<button class="btn btn-ghost" onclick="closeModal()">Close</button>';
+  showModal();
+}
+
 function renderKasH(){
+  if(typeof _pettyItems!=='undefined'&&!_pettyItems.length){try{renderPettyItems();}catch(e){}}
   const reports=S.kas.filter(k=>k.hub===S.hub);
   const tb=document.getElementById('kas-tb');
   if(!reports.length){tb.innerHTML='<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--text3);">No reports yet.</td></tr>';return;}
@@ -1395,7 +1446,7 @@ function renderKasH(){
     const obRec=S.obs.filter(t=>t.lunas_at&&t.lunas_at.indexOf(k.tgl)===0&&t.hub===k.hub).reduce((a,t)=>a+pn(t.nilai_kontrak),0);
     const expDay=S.expenses.filter(e=>e.hub===k.hub&&e.tgl===k.tgl).reduce((a,e)=>a+pn(e.amount),0);
     const sisa=total-ibPaid+obRec-expDay;
-    return '<tr><td>'+k.tgl+'</td><td>'+k.hub+'</td><td class="mono">'+fR(k.saldo)+'</td><td class="mono">'+fR(k.petty)+'</td><td class="mono" style="color:var(--blue);">'+fR(total)+'</td><td class="mono" style="color:var(--red);">'+fR(ibPaid)+'</td><td class="mono" style="color:var(--green);">'+fR(obRec)+'</td><td class="mono" style="color:var(--red);">'+fR(expDay)+'</td><td class="mono" style="color:'+(sisa>=0?'var(--green)':'var(--red)')+';">'+fR(sisa)+'</td><td style="font-size:10px;color:var(--text3);">'+(k.by_user||'-')+'</td><td>'+(k.proof_data?'<button class="btn btn-ghost btn-sm" onclick="viewProof(\'kas\','+k.id+')">View</button>':'<span style="color:var(--red);font-size:10px;">none</span>')+'</td></tr>';
+    return '<tr><td>'+k.tgl+'</td><td>'+k.hub+'</td><td class="mono">'+fR(k.saldo)+'</td><td class="mono">'+fR(k.petty)+'</td><td class="mono" style="color:var(--blue);">'+fR(total)+'</td><td class="mono" style="color:var(--red);">'+fR(ibPaid)+'</td><td class="mono" style="color:var(--green);">'+fR(obRec)+'</td><td class="mono" style="color:var(--red);">'+fR(expDay)+'</td><td class="mono" style="color:'+(sisa>=0?'var(--green)':'var(--red)')+';">'+fR(sisa)+'</td><td style="font-size:10px;color:var(--text3);">'+(k.by_user||'-')+'</td><td>'+((k.petty_items&&k.petty_items.length)?k.petty_items.map(function(it,ii){return '<button class="btn btn-ghost btn-sm" style="margin:1px;" onclick="viewPettyProof(\''+k.id+'\','+ii+')">'+(ii+1)+'</button>';}).join(''):(k.proof_data?'<button class="btn btn-ghost btn-sm" onclick="viewProof(\'kas\','+k.id+')">View</button>':'<span style="color:var(--red);font-size:10px;">none</span>'))+'</td></tr>';
   }).join('');
 }
 
@@ -1433,6 +1484,7 @@ function viewProof(type,id){
 
 async function submitExpense(){
   if(!can('Finance')){toast('Finance/Admin only','err');return;}
+  if(!financeProofGate())return;
   const tgl=document.getElementById('exp-tgl').value;
   const cat=document.getElementById('exp-cat').value;
   const ctype=document.getElementById('exp-ctype').value;
@@ -1555,16 +1607,29 @@ function _obIdx(stage){for(var i=0;i<OB_S.length;i++)if(OB_S[i].id===stage)retur
 
 // ════════════ UNPAID ════════════
 function renderUnpaid(){
-  const unpaid=S.ibs.filter(t=>t.stage==='bayar'&&!t.paid&&t.hub===S.hub);
+  renderPrepayBuy();
+  const unpaid=S.ibs.filter(t=>!t.paid&&t.hub===S.hub&&pn(t.netto_kg)>0&&(t.stage==='bayar'||t.stage==='verif'||t.stage==='memo'||_ibIdx(t.stage)>=_ibIdx('bongkar')));
   const el=document.getElementById('unpaid-list');
-  const total=unpaid.reduce((a,t)=>a+pn(t.total_bayar),0);
+  const total=unpaid.reduce((a,t)=>a+(pn(t.total_bayar)||pn(t.netto_kg)*pn(t.harga_aktual)||pn(t.netto_kg)*pn(t.est_harga)),0);
   document.getElementById('total-unpaid').textContent='Total: '+fR(total);
   if(!unpaid.length){el.innerHTML='<div style="text-align:center;padding:32px;color:var(--text3);">No memos pending payment.</div>';return;}
   const groups={};unpaid.forEach(function(t){if(!groups[t.supplier])groups[t.supplier]=[];groups[t.supplier].push(t);});
   el.innerHTML=Object.keys(groups).map(function(sup){
     const txns=groups[sup];const sub=txns.reduce((a,t)=>a+pn(t.total_bayar),0);
-    return '<div style="margin-bottom:14px;"><div style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px 6px 0 0;padding:9px 14px;display:flex;justify-content:space-between;align-items:center;"><span style="font-weight:700;">'+sup+' <span style="font-size:11px;color:var(--text2);font-weight:400;">('+txns.length+')</span></span><span class="mono" style="color:var(--yellow);">'+fR(sub)+'</span></div><div style="border:1px solid var(--border2);border-top:none;border-radius:0 0 6px 6px;overflow:hidden;"><table class="tbl"><thead><tr><th>ID</th><th>Date</th><th>WS</th><th>Net</th><th>Total</th><th>Memo</th><th>Pay</th></tr></thead><tbody>'+txns.map(function(t){return '<tr><td class="mono" style="font-size:9px;">'+t.id+'</td><td>'+t.tanggal+'</td><td class="mono">'+(t.no_ws||'-')+'</td><td class="mono">'+f(t.netto_kg||0)+' kg</td><td class="mono" style="color:var(--green);font-weight:700;">'+fR(t.total_bayar||0)+'</td><td class="mono">'+(t.no_po||'-')+'</td><td><button class="btn btn-green btn-sm" onclick="openIb(\''+t.id+'\')" '+(!can('Finance')?'disabled':'')+'>Pay</button></td></tr>';}).join('')+'</tbody></table></div></div>';
+    return '<div style="margin-bottom:14px;"><div style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px 6px 0 0;padding:9px 14px;display:flex;justify-content:space-between;align-items:center;"><span style="font-weight:700;">'+sup+' <span style="font-size:11px;color:var(--text2);font-weight:400;">('+txns.length+')</span></span><span class="mono" style="color:var(--yellow);">'+fR(sub)+'</span></div><div style="border:1px solid var(--border2);border-top:none;border-radius:0 0 6px 6px;overflow:hidden;"><table class="tbl"><thead><tr><th>ID</th><th>Date</th><th>WS</th><th>Net</th><th>Total</th><th>Memo</th><th>Pay</th></tr></thead><tbody>'+txns.map(function(t){return '<tr><td class="mono" style="font-size:9px;">'+t.id+'</td><td>'+t.tanggal+'</td><td class="mono">'+(t.no_ws||'-')+'</td><td class="mono">'+f(t.netto_kg||0)+' kg</td><td class="mono" style="color:var(--green);font-weight:700;">'+fR(t.total_bayar||0)+'</td><td class="mono">'+(t.no_po||'-')+'</td><td>'+(t.stage==='bayar'?'<button class="btn btn-green btn-sm" onclick="openIb(\''+t.id+'\')" '+(!can('Finance')?'disabled':'')+'>Pay</button>':'<button class="btn btn-ghost btn-sm" onclick="openIb(\''+t.id+'\')">'+(IB_S[_ibIdx(t.stage)]?IB_S[_ibIdx(t.stage)].n:t.stage)+'</button>')+'</td></tr>';}).join('')+'</tbody></table></div></div>';
   }).join('');
+}
+
+function renderPrepayBuy(){
+  const list=S.ibs.filter(t=>t.hub===S.hub&&pn(t.dp_supplier_amt)>0&&!t.dp_supplier_paid&&!t.paid);
+  const el=document.getElementById('prepay-buy-list');if(!el)return;
+  const total=list.reduce((a,t)=>a+pn(t.dp_supplier_amt),0);
+  const tt=document.getElementById('total-prepay-buy');if(tt)tt.textContent=fR(total);
+  if(!list.length){el.innerHTML='<div style="text-align:center;padding:16px;color:var(--text3);font-size:11px;">Tidak ada DP supplier tertunggak. / No pending supplier DP.</div>';return;}
+  el.innerHTML='<div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>ID</th><th>Date</th><th>Supplier</th><th>DP Amount</th><th>Status</th><th>Note</th><th>Action</th></tr></thead><tbody>'+
+    list.map(function(t){
+      return '<tr><td class="mono" style="font-size:9px;">'+t.id+'</td><td>'+t.tanggal+'</td><td>'+t.supplier+'</td><td class="mono" style="color:var(--yellow);font-weight:700;">'+fR(pn(t.dp_supplier_amt))+'</td><td><span class="badge b-yellow">'+(t.dp_supplier_paid?'Paid':'Proposed')+'</span></td><td style="font-size:10px;">'+(t.dp_supplier_note||'-')+'</td><td><button class="btn btn-ghost btn-sm" onclick="openIb(\''+t.id+'\')">Open</button></td></tr>';
+    }).join('')+'</tbody></table></div>';
 }
 
 // ════════════ UNSETTLED + DP ════════════
@@ -2808,6 +2873,68 @@ function renderExtraReport(type,hub,m,el){
     h+='</tbody></table></div>';
     el.innerHTML=h;
   }
+}
+
+// ════════════════════════════════════════════════════════
+//  FINANCE CONTROLS: 24h proof lock, unpaid PO list,
+//  purchase prepayment list, per-line petty cash proof
+// ════════════════════════════════════════════════════════
+
+// ---- 24-HOUR PROOF LOCK ----
+// Cari transaksi Finance yang buktinya belum lengkap & sudah lewat 24 jam.
+// Returns array of {id, kind, since_h}. Jika ada, Finance dikunci.
+function overdueProofItems(){
+  const now=Date.now(); const out=[];
+  // Pembelian sudah dibayar tapi belum ada bukti transfer
+  S.ibs.forEach(function(t){
+    if(t.paid && t.paid_at && (!t.docs || !t.docs.bukti_bayar)){
+      const h=(now-new Date(t.paid_at).getTime())/3600000;
+      if(h>24) out.push({id:t.id, kind:'Payment proof (inbound)', who:t.supplier, since_h:Math.floor(h)});
+    }
+  });
+  // Penjualan lunas tapi belum ada bukti pelunasan
+  S.obs.forEach(function(t){
+    if(t.lunas && t.lunas_at && (!t.docs || !t.docs.bukti_lunas)){
+      const h=(now-new Date(t.lunas_at).getTime())/3600000;
+      if(h>24) out.push({id:t.id, kind:'Settlement proof (outbound)', who:t.buyer, since_h:Math.floor(h)});
+    }
+  });
+  // Laporan kas dengan petty item tanpa bukti (per-line)
+  S.kas.forEach(function(k){
+    const items=(k.petty_items||[]);
+    items.forEach(function(it,idx){
+      if(pn(it.amount)>0 && !it.proof_data && k.tgl){
+        const h=(now-new Date(k.tgl+'T23:59:59').getTime())/3600000;
+        if(h>24) out.push({id:k.id||('kas-'+k.tgl), kind:'Petty cash proof', who:(it.note||'item '+(idx+1)), since_h:Math.floor(h)});
+      }
+    });
+  });
+  return out;
+}
+// Gate: panggil sebelum aksi Finance apa pun. Return true jika BOLEH lanjut.
+function financeProofGate(){
+  const od=overdueProofItems();
+  if(od.length===0) return true;
+  const lines=od.slice(0,8).map(function(x){return '• '+x.kind+' — '+x.who+' ('+x.id+'), '+x.since_h+'h';}).join('\n');
+  toast('🔒 LOCKED: '+od.length+' proof(s) overdue >24h. Upload them first.','err');
+  try{
+    document.getElementById('m-title').textContent='🔒 Finance Locked — Bukti Tertunggak / Overdue Proof';
+    document.getElementById('m-body').innerHTML=
+      '<div class="alert a-warn" style="font-size:12px;">Ada '+od.length+' bukti yang belum diupload lebih dari 24 jam. Semua input & pembayaran Finance dikunci sampai bukti dilengkapi. / '+od.length+' proof(s) are overdue by more than 24 hours. All Finance input & payments are locked until proofs are uploaded.</div>'+
+      '<div style="font-size:11px;font-family:monospace;white-space:pre-line;margin-top:10px;line-height:1.7;">'+lines+'</div>'+
+      '<div class="mut" style="font-size:11px;margin-top:10px;">Buka transaksi terkait dan unggah buktinya untuk membuka kunci. / Open the related transactions and upload their proofs to unlock.</div>';
+    document.getElementById('m-foot-l').innerHTML='';
+    document.getElementById('m-foot-r').innerHTML='<button class="btn btn-ghost" onclick="closeModal()">OK</button>';
+    showModal();
+  }catch(e){}
+  return false;
+}
+// Badge di dashboard bila ada tunggakan
+function proofLockBanner(){
+  if(!can('Finance')) return '';
+  const od=overdueProofItems();
+  if(!od.length) return '';
+  return '<div class="alert a-warn" style="font-size:12px;margin-bottom:10px;"><b>🔒 Finance Locked</b> — '+od.length+' bukti tertunggak >24 jam. Pembayaran diblokir sampai diupload. / '+od.length+' proof(s) overdue >24h. Payments blocked until uploaded.</div>';
 }
 </script>
 </body>

@@ -1100,6 +1100,28 @@ async function createIb(){
 }
 
 // ════════════ OPEN INBOUND ════════════
+
+async function delIbTxn(id){
+  if(!can('Admin')){toast('Admin/GM only','err');return;}
+  const t=S.ibs.find(x=>x.id===id);if(!t)return;
+  if(!confirm('Hapus transaksi pembelian '+id+' ('+(t.supplier||'')+')?\nTindakan ini permanen. / Delete purchase '+id+'? This is permanent.'))return;
+  await audit('DELETE_INBOUND','inbounds',id,{supplier:t.supplier,stage:t.stage},pn(t.total_bayar));
+  const {error}=await sb.from('inbounds').delete().eq('id',id);
+  if(error){toast('Gagal hapus / Delete failed: '+error.message,'err');return;}
+  S.ibs=S.ibs.filter(x=>x.id!==id);
+  closeModal();toast('Transaksi dihapus / Deleted: '+id);refAll();
+}
+async function delObTxn(id){
+  if(!can('Admin')){toast('Admin/GM only','err');return;}
+  const t=S.obs.find(x=>x.id===id);if(!t)return;
+  if(!confirm('Hapus transaksi penjualan '+id+' ('+(t.buyer||'')+')?\nTindakan ini permanen. / Delete sale '+id+'? This is permanent.'))return;
+  await audit('DELETE_OUTBOUND','outbounds',id,{buyer:t.buyer,stage:t.stage},pn(t.nilai_kontrak));
+  const {error}=await sb.from('outbounds').delete().eq('id',id);
+  if(error){toast('Gagal hapus / Delete failed: '+error.message,'err');return;}
+  S.obs=S.obs.filter(x=>x.id!==id);
+  closeModal();toast('Transaksi dihapus / Deleted: '+id);refAll();
+}
+
 function openIb(id){
   const t=S.ibs.filter(x=>x.id===id)[0];if(!t)return;
   window._curIb=id;
@@ -1130,6 +1152,7 @@ function renderIbUI(t){
   const curIdx=ibI(t.stage);const returIdx=ibI(IB_RETUR_FROM);
   let leftBtns='<button class="btn btn-blue btn-sm" onclick="showDocs(\''+t.id+'\')">📄 Docs</button> ';
   if(curIdx>=returIdx){leftBtns+='<button class="btn btn-orange btn-sm" onclick="openReturIb(\''+t.id+'\')">↩ Return / Back</button>';}
+  if(can('Admin')){leftBtns+=' <button class="btn btn-red btn-sm" onclick="delIbTxn(\''+t.id+'\')">🗑 Delete</button>';}
   document.getElementById('m-foot-l').innerHTML=leftBtns;
   document.getElementById('m-foot-r').innerHTML='<button class="btn btn-ghost" onclick="closeModal()">Close</button><button class="btn btn-green" onclick="advIb(\''+t.id+'\')" '+(ro?'disabled title="'+s.r+' only"':'')+'>'+ibBtn(t.stage)+'</button>';
 }
@@ -1267,6 +1290,7 @@ function renderObUI(t){
   const curIdx=obI(t.stage);const returIdx=obI(OB_RETUR_FROM);
   let leftBtns='';
   if(curIdx>=returIdx){leftBtns='<button class="btn btn-orange btn-sm" onclick="openReturOb(\''+t.id+'\')">↩ Return / Back</button>';}
+  if(can('Admin')){leftBtns+=' <button class="btn btn-red btn-sm" onclick="delObTxn(\''+t.id+'\')">🗑 Delete</button>';}
   document.getElementById('m-foot-l').innerHTML=leftBtns;
   document.getElementById('m-foot-r').innerHTML='<button class="btn btn-ghost" onclick="closeModal()">Close</button><button class="btn btn-purple" onclick="advOb(\''+t.id+'\')" '+(ro?'disabled title="'+s.r+' only"':'')+'>'+obBtn(t.stage)+'</button>';
 }
@@ -1810,11 +1834,39 @@ function docShell(title,inner){
   '<div class="ft">'+CO.name+' · '+CO.addr1+' · '+CO.addr2+', '+CO.addr3+'</div>'+
   '</body></html>';
 }
-function openDoc(title,inner){
-  const w=window.open('','_blank');
-  if(!w){toast('Allow pop-ups to view documents','err');return;}
-  w.document.write(docShell(title,inner));
-  w.document.close();
+async function openDoc(title,inner){
+  // Direct PDF download (mobile-friendly) instead of popup window.
+  if(!window.jspdf||!window.html2canvas){toast('PDF engine masih loading, coba lagi / PDF engine loading','err');return;}
+  toast('Membuat PDF... / Generating PDF...');
+  try{
+    // Render the document body (without the print bar) into a hidden host.
+    const full=docShell(title,inner);
+    // extract inner <body>...</body>
+    const bodyMatch=full.match(/<body>([\s\S]*?)<\/body>/i);
+    const styleMatch=full.match(/<style>([\s\S]*?)<\/style>/i);
+    let host=document.getElementById('_docpdfhost');if(host)host.remove();
+    host=document.createElement('div');host.id='_docpdfhost';
+    host.style.cssText='position:fixed;left:-9999px;top:0;width:780px;background:#fff;';
+    if(styleMatch){const st=document.createElement('style');st.textContent=styleMatch[1];host.appendChild(st);}
+    const wrap=document.createElement('div');
+    let inner2=bodyMatch?bodyMatch[1]:full;
+    // buang bar cetak jika ada
+    inner2=inner2.replace(/<div class="bar[^>]*>[\s\S]*?<\/div>/i,'').replace(/<div style="height:34px;"[^>]*><\/div>/i,'');
+    wrap.innerHTML=inner2;wrap.style.cssText='padding:28px 34px;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif;';
+    host.appendChild(wrap);document.body.appendChild(host);
+    const canvas=await html2canvas(wrap,{scale:2,backgroundColor:'#fff'});
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF('p','mm','a4');
+    const pw=pdf.internal.pageSize.getWidth();const ph=pdf.internal.pageSize.getHeight();
+    const iw=pw;const ih=canvas.height*pw/canvas.width;
+    const img=canvas.toDataURL('image/jpeg',0.92);
+    if(ih<=ph){pdf.addImage(img,'JPEG',0,0,iw,ih);}
+    else{let left=ih;let pos=0;while(left>0){pdf.addImage(img,'JPEG',0,pos,iw,ih);left-=ph;pos-=ph;if(left>0)pdf.addPage();}}
+    const fname=String(title).replace(/[^a-zA-Z0-9]+/g,'_')+'.pdf';
+    pdf.save(fname);
+    host.remove();
+    toast('PDF tersimpan / saved: '+fname);
+  }catch(e){toast('Gagal buat PDF / PDF failed: '+e.message,'err');}
 }
 
 // ════════ 1. PURCHASE ORDER ════════
@@ -2106,14 +2158,27 @@ function _ibIdx(stage){for(var i=0;i<IB_S.length;i++)if(IB_S[i].id===stage)retur
 function _ibReached(t,st){return t.stage==='done'||_ibIdx(t.stage)>=_ibIdx(st);}
 
 // open single doc in new tab (print)
-function openSingle(t,page){
-  const w=window.open('','_blank');if(!w){toast('Allow pop-ups','err');return;}
-  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+page.t+' — '+t.supplier+'</title><style>'+DOC_CSS+
-   '.bar{position:fixed;top:0;left:0;right:0;background:#0a7d3c;color:#fff;padding:9px 16px;display:flex;justify-content:space-between;align-items:center;z-index:9;}'+
-   '.bar button{background:#fff;color:#0a7d3c;border:0;padding:7px 16px;border-radius:5px;font-weight:700;cursor:pointer;margin-left:8px;}.docpage{margin:54px auto 20px;box-shadow:0 0 8px rgba(0,0,0,.15);}@media print{.bar{display:none;}.docpage{margin:0;box-shadow:none;}}</style></head><body style="background:#eee;">'+
-   '<div class="bar"><span>📄 '+page.t+'</span><span><button onclick="window.print()">🖨️ Print / Save PDF</button><button onclick="window.close()" style="background:#eee;color:#333;">Close</button></span></div>'+
-   '<div class="docpage">'+_hd(page.l)+page.h+_ft()+'</div></body></html>');
-  w.document.close();
+async function openSingle(t,page){
+  // Generate a real downloadable PDF (works on mobile) instead of a popup window.
+  if(!window.jspdf||!window.html2canvas){toast('PDF engine masih loading, coba lagi / PDF engine loading','err');return;}
+  toast('Membuat PDF... / Generating PDF...');
+  try{
+    const host=_renderHidden(t,[{l:page.l,h:page.h}]);
+    const el=host.querySelector('.docpage');
+    const canvas=await html2canvas(el,{scale:2,backgroundColor:'#fff'});
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF('p','mm','a4');
+    const pw=pdf.internal.pageSize.getWidth();
+    const ph=pdf.internal.pageSize.getHeight();
+    const iw=pw;const ih=canvas.height*pw/canvas.width;
+    const img=canvas.toDataURL('image/jpeg',0.92);
+    if(ih<=ph){pdf.addImage(img,'JPEG',0,0,iw,ih);}
+    else{let left=ih;let pos=0;while(left>0){pdf.addImage(img,'JPEG',0,pos,iw,ih);left-=ph;pos-=ph;if(left>0)pdf.addPage();}}
+    const fname=(page.t||'Document').replace(/[^a-zA-Z0-9]+/g,'_')+'_'+String(t.supplier||t.buyer||'').replace(/[^a-zA-Z0-9]+/g,'_')+'.pdf';
+    pdf.save(fname);
+    host.remove();
+    toast('PDF tersimpan / saved: '+fname);
+  }catch(e){toast('Gagal buat PDF / PDF failed: '+e.message,'err');}
 }
 
 // build a hidden container with all pages, return the element

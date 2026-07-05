@@ -781,6 +781,14 @@ async function afterLogin(session){
   document.getElementById('userName').textContent=S.nama;
   document.getElementById('userRole').textContent=S.role;
   document.getElementById('hubSel').value=S.hub;
+  // Kunci hub untuk role yang terikat hub (Purchase & Warehouse per-hub).
+  // Lock hub for hub-bound roles (Purchase & Warehouse are per-hub).
+  const hubLocked=(S.role==='Purchase-Beli'||S.role==='Gudang');
+  const hubSelEl=document.getElementById('hubSel');
+  if(hubSelEl){
+    if(hubLocked){hubSelEl.disabled=true;hubSelEl.title='Hub terkunci untuk divisi ini / Hub locked for this division';hubSelEl.style.opacity='0.6';hubSelEl.style.cursor='not-allowed';}
+    else{hubSelEl.disabled=false;hubSelEl.style.opacity='1';hubSelEl.style.cursor='pointer';}
+  }
   upHub();
   document.getElementById('loading').style.display='none';
   document.getElementById('login').style.display='none';
@@ -939,7 +947,9 @@ function showTabContent(name){
   if(m[name])m[name]();
 }
 function upHub(){document.getElementById('hubL').textContent=S.hub==='Medan'?'MDN':'JKT';}
-async function switchHub(h){S.hub=h;upHub();await sb.from('profiles').update({hub:h}).eq('id',S.uid);refAll();toast('Hub: '+h);}
+async function switchHub(h){
+  if(S.role==='Purchase-Beli'||S.role==='Gudang'){toast('Hub terkunci untuk divisi ini / Hub locked for this division','err');document.getElementById('hubSel').value=S.hub;return;}
+  S.hub=h;upHub();await sb.from('profiles').update({hub:h}).eq('id',S.uid);refAll();toast('Hub: '+h);}
 
 function refAll(){updBadges();renderDash();try{renderNotifications();}catch(e){}
   const vis=function(id){const e=document.getElementById('tab-'+id);return e&&e.style.display!=='none';};
@@ -1354,7 +1364,8 @@ async function upDoc(event,type,txnId,docKey){
   reader.onload=async function(e){
     t.docs=t.docs||{};t.docs[docKey]={name:file.name,data:e.target.result,at:new Date().toISOString(),by:S.nama};
     if(docKey==='photo_wb_supplier'||docKey==='photo_wb_out')t[docKey]=file.name;
-    if(type==='ib'){await saveIb(t);openIb(txnId);}else{await saveOb(t);openOb(txnId);}
+    if(type==='ib'){await saveIb(t);}else{await saveOb(t);}
+    try{const inp=event.target;const zone=inp.previousElementSibling;if(zone&&zone.classList&&zone.classList.contains('upzone')){zone.classList.add('has');const p=zone.querySelector('p');if(p)p.textContent='\u2713 '+file.name;}}catch(err){}
     toast('✅ '+file.name+'uploaded');
   };
   reader.readAsDataURL(file);

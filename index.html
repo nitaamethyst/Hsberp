@@ -540,7 +540,7 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
   <div class="sect-t" style="margin-bottom:10px;">Checklist per Transaction
     <div class="gap8">
       <select class="ctrl" id="ga-ft" onchange="renderGA()"><option value="">All</option><option value="ib">Purchase</option><option value="ob">Sale</option></select>
-      <select class="ctrl" id="ga-fs" onchange="renderGA()"><option value="">All Status</option><option value="pend">Pending</option><option value="done">Done</option></select>
+      <select class="ctrl" id="ga-fs" onchange="renderGA()"><option value="">All Status</option><option value="prog">In Progress</option><option value="pend">Done · GDrive Pending</option><option value="done">Archived</option></select>
     </div>
   </div>
   <div id="ga-list"></div>
@@ -1299,7 +1299,8 @@ function renderObUI(t){
   const ro=!can(s.r);
   const curIdx=obI(t.stage);const returIdx=obI(OB_RETUR_FROM);
   let leftBtns='';
-  if(curIdx>=returIdx){leftBtns='<button class="btn btn-orange btn-sm" onclick="openReturOb(\''+t.id+'\')">↩ Return / Back</button>';}
+  leftBtns='<button class="btn btn-blue btn-sm" onclick="showObDocs(\''+t.id+'\')">📄 Docs</button> '+leftBtns;
+  if(curIdx>=returIdx){leftBtns+='<button class="btn btn-orange btn-sm" onclick="openReturOb(\''+t.id+'\')">↩ Return / Back</button>';}
   if(can('Admin')){leftBtns+=' <button class="btn btn-red btn-sm" onclick="delObTxn(\''+t.id+'\')">🗑 Delete</button>';}
   document.getElementById('m-foot-l').innerHTML=leftBtns;
   document.getElementById('m-foot-r').innerHTML='<button class="btn btn-ghost" onclick="closeModal()">Close</button><button class="btn btn-purple" onclick="advOb(\''+t.id+'\')" '+(ro?'disabled title="'+s.r+' only"':'')+'>'+obBtn(t.stage)+'</button>';
@@ -1310,7 +1311,7 @@ function obAct(t,s){
   const w=ro?'<div class="alert a-warn">🔒 This stage belongs to <b>'+s.r+'</b>.</div>':'';
   if(t.stage==='po_buyer')return w+'<div class="alert a-purple">📋 PO Buyer diterima. Lanjut prepayment.</div><div class="ir"><div class="ir-l">No. PO Buyer</div><div class="ir-v mono">'+t.no_po_buyer+'</div></div><div class="ir"><div class="ir-l">Volume</div><div class="ir-v g">'+f(t.vol_kg)+' kg</div></div><div class="ir"><div class="ir-l">Contract Value</div><div class="ir-v g">'+fR(t.nilai_kontrak||0)+'</div></div><div class="upzone '+(t.docs.po_buyer?'has':'')+' mt10" onclick="document.getElementById(\'f-ob-po\').click()"><p>'+(t.docs.po_buyer?'✅ POuploaded':'Upload scan PO Buyer (opsional)')+'</p></div><input type="file" id="f-ob-po" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ob\',\''+t.id+'\',\'po_buyer\')" '+d+'/>';
   if(t.stage==='prepay'){const pa=t.terms==='Prepayment 50%'?(t.nilai_kontrak||0)*0.5:(t.nilai_kontrak||0);return w+'<div class="alert a-info">💰 Konfirmasi prepayment/DP dari buyer.</div><div class="ir"><div class="ir-l">Contract Value</div><div class="ir-v">'+fR(t.nilai_kontrak||0)+'</div></div><div class="ir"><div class="ir-l">Estimated DP</div><div class="ir-v g">'+fR(pa)+'</div></div><div class="frow mt10"><div class="fg"><label>DP Amount Received<span class="req">*</span></label><input type="number" id="ob-pp" value="'+pa+'" '+d+'/></div><div class="fg"><label>Date Terima</label><input type="date" id="ob-ppd" value="'+td()+'" '+d+'/></div></div><div class="upzone '+(t.docs.bukti_prepay?'has':'')+' mt10" onclick="document.getElementById(\'f-ob-pp\').click()"><p>'+(t.docs.bukti_prepay?'✅ Bukti DPuploaded':'Upload transfer proof DP')+'</p></div><input type="file" id="f-ob-pp" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ob\',\''+t.id+'\',\'bukti_prepay\')" '+d+'/>';}
-  if(t.stage==='muat')return w+'<div class="alert a-info">🚛 In Progress pemuatan.</div><div class="frow mt10"><div class="fg"><label>Date Muat</label><input type="date" id="ob-md" value="'+td()+'" '+d+'/></div><div class="fg"><label>Vehicle Plate</label><input type="text" id="ob-mp" placeholder="B1234XX" '+d+' value="'+(t.muat_plat||'')+'"/></div></div><div class="fg"><label>Driver</label><input type="text" id="ob-mdr" '+d+' value="'+(t.muat_driver||'')+'"/></div><div class="sect-t mt10" style="border:none;">📷 Outbound Weighbridge Photo (goods leaving warehouse)</div><div class="upzone '+(t.photo_wb_out?'has':'')+'" onclick="document.getElementById(\'f-wbout\').click()"><p>'+(t.photo_wb_out?'Photo uploaded':'Upload weighbridge photo at gate')+'</p></div><input type="file" id="f-wbout" accept="image/*" style="display:none" onchange="upDoc(event,\'ob\',\''+t.id+'\',\'photo_wb_out\')" '+d+'/>';
+  if(t.stage==='muat')return w+'<div class="alert a-info">🚛 In Progress pemuatan.</div><div class="frow mt10"><div class="fg"><label>Date Muat</label><input type="date" id="ob-md" value="'+td()+'" '+d+'/></div><div class="fg"><label>Vehicle Plate</label><input type="text" id="ob-mp" placeholder="B1234XX" '+d+' value="'+(t.muat_plat||'')+'"/></div></div><div class="fg"><label>Driver</label><input type="text" id="ob-mdr" '+d+' value="'+(t.muat_driver||'')+'"/></div><div class="sect-t mt10" style="border:none;">🧪 Lab Test (wajib sebelum Surat Jalan) / Lab test (required before DO)</div><div class="frow"><div class="fg"><label>FFA (%)</label><input type="number" step="0.01" id="ob-lab-ffa" '+d+' value="'+(t.lab_ffa||'')+'"/></div><div class="fg"><label>Moisture (%)</label><input type="number" step="0.01" id="ob-lab-moist" '+d+' value="'+(t.lab_moist||'')+'"/></div><div class="fg"><label>MIU / Other</label><input type="text" id="ob-lab-miu" '+d+' value="'+(t.lab_miu||'')+'"/></div></div><div class="frow"><div class="fg"><label>Result</label><select id="ob-lab-res" '+d+'><option value="">-- pilih --</option><option value="Pass"'+(t.lab_res==='Pass'?' selected':'')+'>Pass</option><option value="Fail"'+(t.lab_res==='Fail'?' selected':'')+'>Fail</option></select></div><div class="fg"><label>Lab Note</label><input type="text" id="ob-lab-note" '+d+' value="'+(t.lab_note||'')+'"/></div></div><div class="sect-t mt10" style="border:none;">📷 Outbound Weighbridge Photo (goods leaving warehouse)</div><div class="upzone '+(t.photo_wb_out?'has':'')+'" onclick="document.getElementById(\'f-wbout\').click()"><p>'+(t.photo_wb_out?'Photo uploaded':'Upload weighbridge photo at gate')+'</p></div><input type="file" id="f-wbout" accept="image/*" style="display:none" onchange="upDoc(event,\'ob\',\''+t.id+'\',\'photo_wb_out\')" '+d+'/>';
   if(t.stage==='do_keluar')return w+'<div class="alert a-info">📄 Terbitkan Outbound DO / Surat Jalan.</div><div class="frow mt10"><div class="fg"><label>No. Outbound DO<span class="req">*</span></label><input type="text" id="ob-do" placeholder="DO-KEL-XXXX" '+d+' value="'+(t.no_do_keluar||'')+'"/></div></div><div class="upzone '+(t.docs.surat_jalan?'has':'')+' mt10" onclick="document.getElementById(\'f-ob-sj\').click()"><p>'+(t.docs.surat_jalan?'✅ Surat jalanuploaded':'Upload Surat Jalan / Outbound DO')+'</p></div><input type="file" id="f-ob-sj" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ob\',\''+t.id+'\',\'surat_jalan\')" '+d+'/>';
   if(t.stage==='inv_fp'){const sisa=(t.nilai_kontrak||0)-(t.prepay_amt||0);return w+'<div class="alert a-info">🧾 Terbitkan Invoice + Faktur Pajak bersamaan.</div><div class="frow mt10"><div class="fg"><label>No. Invoice<span class="req">*</span></label><input type="text" id="ob-inv" placeholder="INV-XXXX" '+d+' value="'+(t.no_invoice||'')+'"/></div><div class="fg"><label>No. Faktur Pajak<span class="req">*</span></label><input type="text" id="ob-fp" placeholder="FP-XXXX" '+d+' value="'+(t.no_fp||'')+'"/></div></div><div class="ir"><div class="ir-l">Total</div><div class="ir-v g">'+fR(t.nilai_kontrak||0)+'</div></div><div class="ir"><div class="ir-l">DP Received</div><div class="ir-v">'+fR(t.prepay_amt||0)+'</div></div><div class="ir"><div class="ir-l">Remaining</div><div class="ir-v y">'+fR(sisa)+'</div></div><div class="upzone '+(t.docs.invoice?'has':'')+' mt10" onclick="document.getElementById(\'f-ob-inv\').click()"><p>'+(t.docs.invoice?'✅ Invoiceuploaded':'Upload Invoice')+'</p></div><input type="file" id="f-ob-inv" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ob\',\''+t.id+'\',\'invoice\')" '+d+'/><div class="upzone '+(t.docs.faktur_pajak?'has':'')+' mt10" onclick="document.getElementById(\'f-ob-fp\').click()"><p>'+(t.docs.faktur_pajak?'✅ Faktur Pajakuploaded':'Upload Faktur Pajak')+'</p></div><input type="file" id="f-ob-fp" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ob\',\''+t.id+'\',\'faktur_pajak\')" '+d+'/>';}
   if(t.stage==='lunas'){const sisa=(t.nilai_kontrak||0)-(t.prepay_amt||0);return w+'<div class="alert a-info">💵 Konfirmasi pelunasan dari buyer.</div><div class="ir"><div class="ir-l">No. Invoice</div><div class="ir-v mono">'+(t.no_invoice||'-')+'</div></div><div class="ir"><div class="ir-l">Remaining Pelunasan</div><div class="ir-v g" style="font-size:15px;">'+fR(sisa)+'</div></div><div class="frow mt10"><div class="fg"><label>Date Settled<span class="req">*</span></label><input type="date" id="ob-ld" value="'+td()+'" '+d+'/></div><div class="fg"><label>Transfer Ref</label><input type="text" id="ob-lr" placeholder="Ref-XXXX" '+d+' value="'+(t.ref_lunas||'')+'"/></div></div><div class="upzone '+(t.docs.bukti_lunas?'has':'')+' mt10" onclick="document.getElementById(\'f-ob-l\').click()"><p>'+(t.docs.bukti_lunas?'✅ Bukti lunasuploaded':'Upload bukti pelunasan')+'</p></div><input type="file" id="f-ob-l" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ob\',\''+t.id+'\',\'bukti_lunas\')" '+d+'/>';}
@@ -1325,7 +1326,7 @@ async function advOb(id){
   function mv(nx,note){t.log=t.log||[];t.log.push({s:t.stage,by:S.nama,at:new Date().toISOString(),n:note});t.stage=nx;t.stage_start=new Date().toISOString();}
   if(t.stage==='po_buyer'){mv('prepay','PO dikonfirmasi');}
   else if(t.stage==='prepay'){const a=pn(document.getElementById('ob-pp').value);if(!a){toast('DP amount required','err');return;}t.prepay_amt=a;t.prepay_date=document.getElementById('ob-ppd').value;mv('muat','DP received: '+fR(a));}
-  else if(t.stage==='muat'){t.muat_plat=document.getElementById('ob-mp').value.trim();t.muat_driver=document.getElementById('ob-mdr').value.trim();mv('do_keluar','Muat selesai');}
+  else if(t.stage==='muat'){t.muat_plat=document.getElementById('ob-mp').value.trim();t.muat_driver=document.getElementById('ob-mdr').value.trim();t.lab_ffa=document.getElementById('ob-lab-ffa').value;t.lab_moist=document.getElementById('ob-lab-moist').value;t.lab_miu=document.getElementById('ob-lab-miu').value;t.lab_res=document.getElementById('ob-lab-res').value;t.lab_note=document.getElementById('ob-lab-note').value.trim();if(!t.lab_res){toast('Hasil lab wajib diisi sebelum Surat Jalan / Lab result required before DO','err');return;}mv('do_keluar','Muat selesai');}
   else if(t.stage==='do_keluar'){const dk=document.getElementById('ob-do').value.trim();if(!dk){toast('No. Outbound DO required','err');return;}t.no_do_keluar=dk;mv('inv_fp','Outbound DO: '+dk);}
   else if(t.stage==='inv_fp'){const inv=document.getElementById('ob-inv').value.trim();const fp=document.getElementById('ob-fp').value.trim();if(!inv||!fp){toast('Invoice & FP required','err');return;}t.no_invoice=inv;t.no_fp=fp;mv('lunas','Invoice: '+inv+', FP: '+fp);}
   else if(t.stage==='lunas'){const ld=document.getElementById('ob-ld').value;if(!ld){toast('Settlement date required','err');return;}t.ref_lunas=document.getElementById('ob-lr').value.trim();t.lunas=true;t.lunas_at=new Date().toISOString();t.stage='done';t.log.push({s:'done',by:S.nama,at:new Date().toISOString(),n:'SETTLED — Ref: '+(t.ref_lunas||'-')});await saveOb(t);closeModal();toast('✅ Sale SETTLED!');return;}
@@ -1382,19 +1383,28 @@ async function togGd(type,id){
 function renderGA(){
   const ft=document.getElementById('ga-ft').value;const fs=document.getElementById('ga-fs').value;
   let items=[];
-  if(!ft||ft==='ib')S.ibs.filter(t=>t.stage==='done').forEach(t=>items.push({type:'ib',t:t}));
-  if(!ft||ft==='ob')S.obs.filter(t=>t.stage==='done').forEach(t=>items.push({type:'ob',t:t}));
-  if(fs==='pend')items=items.filter(x=>!(x.t.gdoc&&x.t.gdoc.gdrive));
+  // Tampilkan SEMUA transaksi (selesai & belum) agar terlihat mana yang belum beres.
+  // Show ALL transactions (done & in-progress) so it's clear what is unfinished.
+  if(!ft||ft==='ib')S.ibs.filter(t=>t.hub===S.hub).forEach(t=>items.push({type:'ib',t:t}));
+  if(!ft||ft==='ob')S.obs.filter(t=>t.hub===S.hub).forEach(t=>items.push({type:'ob',t:t}));
+  if(fs==='prog')items=items.filter(x=>x.t.stage!=='done');
+  if(fs==='pend')items=items.filter(x=>x.t.stage==='done'&&!(x.t.gdoc&&x.t.gdoc.gdrive));
   if(fs==='done')items=items.filter(x=>x.t.gdoc&&x.t.gdoc.gdrive);
-  items.sort((a,b)=>{const ga=a.t.gdoc&&a.t.gdoc.gdrive?1:0;const gb=b.t.gdoc&&b.t.gdoc.gdrive?1:0;return ga-gb;});
-  document.getElementById('ga-pend').textContent=items.filter(x=>!(x.t.gdoc&&x.t.gdoc.gdrive)).length;
+  // urutkan: belum selesai dulu, lalu selesai belum arsip, lalu arsip
+  items.sort((a,b)=>{const sa=a.t.stage!=='done'?0:(a.t.gdoc&&a.t.gdoc.gdrive?2:1);const sb=b.t.stage!=='done'?0:(b.t.gdoc&&b.t.gdoc.gdrive?2:1);return sa-sb;});
+  document.getElementById('ga-pend').textContent=items.filter(x=>x.t.stage==='done'&&!(x.t.gdoc&&x.t.gdoc.gdrive)).length;
   document.getElementById('ga-done').textContent=items.filter(x=>x.t.gdoc&&x.t.gdoc.gdrive).length;
   const el=document.getElementById('ga-list');
-  if(!items.length){el.innerHTML='<div style="text-align:center;padding:32px;color:var(--text3);">No completed transactions.</div>';return;}
+  if(!items.length){el.innerHTML='<div style="text-align:center;padding:32px;color:var(--text3);">No transactions.</div>';return;}
+  function _gaStatus(t){
+    if(t.stage!=='done')return '<span class="badge b-yellow" style="font-size:8px;">⏳ '+(t.stage||'').toUpperCase()+'</span> ';
+    if(t.gdoc&&t.gdoc.gdrive)return '<span class="badge b-green" style="font-size:8px;">✓ ARCHIVED</span> ';
+    return '<span class="badge b-blue" style="font-size:8px;">DONE</span> ';
+  }
   let rows=items.map(function(x){
     const t=x.t;const gd=t.gdoc&&t.gdoc.gdrive;
-    if(x.type==='ib')return '<tr><td class="mono" style="font-size:9px;">'+t.id+'</td><td><span class="badge b-green">BELI</span></td><td>'+t.tanggal+'</td><td style="font-weight:600;">'+t.supplier+'</td><td><span class="badge '+(t.docs.do_photo?'b-green':'b-gray')+'">DO'+(t.docs.do_photo?'✅':'—')+'</span></td><td><span class="badge '+(t.docs.nota_kwitansi?'b-green':'b-gray')+'">Nota'+(t.docs.nota_kwitansi?'✅':'—')+'</span></td><td><span class="badge '+(t.docs.bukti_bayar?'b-green':'b-gray')+'">Pay'+(t.docs.bukti_bayar?'✅':'—')+'</span></td><td><span class="badge '+(gd?'b-green':'b-yellow')+'">'+(gd?'✅ Upload':'Pending')+'</span></td><td><button class="btn btn-ghost btn-sm" onclick="openIb(\''+t.id+'\')">Open</button> <button class="btn btn-sm '+(gd?'btn-green':'btn-yellow')+'" onclick="togGd(\'ib\',\''+t.id+'\')" '+(!can('GA')?'disabled':'')+'>'+(gd?'✅':'GDrive')+'</button></td></tr>';
-    else return '<tr><td class="mono" style="font-size:9px;">'+t.id+'</td><td><span class="badge b-purple">JUAL</span></td><td>'+t.tanggal+'</td><td style="font-weight:600;">'+t.buyer+'</td><td><span class="badge '+(t.docs.surat_jalan?'b-green':'b-gray')+'">SJ'+(t.docs.surat_jalan?'✅':'—')+'</span></td><td><span class="badge '+(t.docs.invoice?'b-green':'b-gray')+'">INV'+(t.docs.invoice?'✅':'—')+'</span> <span class="badge '+(t.docs.faktur_pajak?'b-green':'b-gray')+'">FP'+(t.docs.faktur_pajak?'✅':'—')+'</span></td><td><span class="badge '+(t.docs.bukti_lunas?'b-green':'b-gray')+'">Settled'+(t.docs.bukti_lunas?'✅':'—')+'</span></td><td><span class="badge '+(gd?'b-green':'b-yellow')+'">'+(gd?'✅ Upload':'Pending')+'</span></td><td><button class="btn btn-ghost btn-sm" onclick="openOb(\''+t.id+'\')">Open</button> <button class="btn btn-sm '+(gd?'btn-green':'btn-yellow')+'" onclick="togGd(\'ob\',\''+t.id+'\')" '+(!can('GA')?'disabled':'')+'>'+(gd?'✅':'GDrive')+'</button></td></tr>';
+    if(x.type==='ib')return '<tr><td class="mono" style="font-size:9px;">'+t.id+'</td><td><span class="badge b-green">BELI</span></td><td>'+t.tanggal+'</td><td style="font-weight:600;">'+_gaStatus(t)+(t.supplier||'')+'</td><td><span class="badge '+(t.docs.do_photo?'b-green':'b-gray')+'">DO'+(t.docs.do_photo?'✅':'—')+'</span></td><td><span class="badge '+(t.docs.nota_kwitansi?'b-green':'b-gray')+'">Nota'+(t.docs.nota_kwitansi?'✅':'—')+'</span></td><td><span class="badge '+(t.docs.bukti_bayar?'b-green':'b-gray')+'">Pay'+(t.docs.bukti_bayar?'✅':'—')+'</span></td><td><span class="badge '+(gd?'b-green':'b-yellow')+'">'+(gd?'✅ Upload':'Pending')+'</span></td><td><button class="btn btn-ghost btn-sm" onclick="openIb(\''+t.id+'\')">Open</button> <button class="btn btn-sm '+(gd?'btn-green':'btn-yellow')+'" onclick="togGd(\'ib\',\''+t.id+'\')" '+(!can('GA')?'disabled':'')+'>'+(gd?'✅':'GDrive')+'</button></td></tr>';
+    else return '<tr><td class="mono" style="font-size:9px;">'+t.id+'</td><td><span class="badge b-purple">JUAL</span></td><td>'+t.tanggal+'</td><td style="font-weight:600;">'+_gaStatus(t)+(t.buyer||'')+'</td><td><span class="badge '+(t.docs.surat_jalan?'b-green':'b-gray')+'">SJ'+(t.docs.surat_jalan?'✅':'—')+'</span></td><td><span class="badge '+(t.docs.invoice?'b-green':'b-gray')+'">INV'+(t.docs.invoice?'✅':'—')+'</span> <span class="badge '+(t.docs.faktur_pajak?'b-green':'b-gray')+'">FP'+(t.docs.faktur_pajak?'✅':'—')+'</span></td><td><span class="badge '+(t.docs.bukti_lunas?'b-green':'b-gray')+'">Settled'+(t.docs.bukti_lunas?'✅':'—')+'</span></td><td><span class="badge '+(gd?'b-green':'b-yellow')+'">'+(gd?'✅ Upload':'Pending')+'</span></td><td><button class="btn btn-ghost btn-sm" onclick="openOb(\''+t.id+'\')">Open</button> <button class="btn btn-sm '+(gd?'btn-green':'btn-yellow')+'" onclick="togGd(\'ob\',\''+t.id+'\')" '+(!can('GA')?'disabled':'')+'>'+(gd?'✅':'GDrive')+'</button></td></tr>';
   }).join('');
   el.innerHTML='<div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>ID</th><th>Type</th><th>Date</th><th>Name</th><th>Dok 1</th><th>Dok 2</th><th>Pay/Settled</th><th>GDrive</th><th>Action</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
@@ -1693,7 +1703,7 @@ function renderUnlunas(){
   if(!withDP.length){dptb.innerHTML='<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text3);">No DP received yet.</td></tr>';}
   else{
     const sorted=withDP.slice().sort((a,b)=>(b.prepay_date||'').localeCompare(a.prepay_date||''));
-    dptb.innerHTML=sorted.map(function(t){const sisa=(t.nilai_kontrak||0)-(t.prepay_amt||0);const pct=t.nilai_kontrak?Math.round((t.prepay_amt/t.nilai_kontrak)*100):0;const lunasFull=t.lunas||sisa<=0;return '<tr><td>'+(t.prepay_date||'-')+'</td><td class="mono" style="font-size:9px;">'+t.id+'</td><td style="font-weight:600;">'+t.buyer+'</td><td class="mono">'+(t.no_po_buyer||'-')+'</td><td class="mono">'+fR(t.nilai_kontrak||0)+'</td><td class="mono" style="color:var(--green);font-weight:700;">'+fR(t.prepay_amt||0)+'</td><td class="mono">'+pct+'%</td><td class="mono" style="color:'+(sisa>0?'var(--purple)':'var(--green)')+';">'+fR(sisa)+'</td><td><span class="badge '+(lunasFull?'b-green':'b-yellow')+'">'+(lunasFull?'SETTLED':'DP/Sebagian')+'</span></td></tr>';}).join('');
+    dptb.innerHTML=sorted.map(function(t){const sisa=(t.nilai_kontrak||0)-(t.prepay_amt||0);const pct=t.nilai_kontrak?Math.round((t.prepay_amt/t.nilai_kontrak)*100):0;const lunasFull=t.lunas||sisa<=0;return '<tr><td>'+(t.prepay_date||'-')+'</td><td class="mono" style="font-size:9px;">'+t.id+'</td><td style="font-weight:600;">'+_gaStatus(t)+(t.buyer||'')+'</td><td class="mono">'+(t.no_po_buyer||'-')+'</td><td class="mono">'+fR(t.nilai_kontrak||0)+'</td><td class="mono" style="color:var(--green);font-weight:700;">'+fR(t.prepay_amt||0)+'</td><td class="mono">'+pct+'%</td><td class="mono" style="color:'+(sisa>0?'var(--purple)':'var(--green)')+';">'+fR(sisa)+'</td><td><span class="badge '+(lunasFull?'b-green':'b-yellow')+'">'+(lunasFull?'SETTLED':'DP/Sebagian')+'</span></td></tr>';}).join('');
   }
 }
 
@@ -1940,6 +1950,26 @@ function docLab(t){
   openDoc('Lab Test Result — '+t.supplier,{head:head,body:body});
 }
 
+function docLabOb(t){
+  const head='<div><div class="dt">Laboratory Analysis (Outbound)</div><div class="meta"><b>Date</b>: '+dFmt(t.tanggal)+'<br><b>Ref</b>: LABOUT-'+String(t.id).replace(/[^0-9]/g,'').slice(-6)+'</div></div>';
+  const res=t.lab_res||'';
+  const stF=(pn(t.lab_ffa)<=4&&t.lab_ffa)?'PASS':(t.lab_ffa?'CHECK':'');
+  const stM=(pn(t.lab_moist)<=1.5&&t.lab_moist)?'PASS':(t.lab_moist?'CHECK':'');
+  const body=
+   '<div class="row2"><div class="box"><h4>Sample Info</h4><div class="kv"><b>Buyer</b>'+blank(t.buyer)+'<br><b>PO No.</b>'+blank(t.no_po_buyer)+'<br><b>Date</b>'+dFmt(t.tanggal)+'<br><b>Volume</b>'+blank(f(pn(t.vol_kg)))+' kg</div></div>'+
+   '<div class="box"><h4>Sample Description</h4><div class="kv">UCO (Used Cooking Oil)<br>For outbound delivery</div></div></div>'+
+   '<table><tr><th>Parameter</th><th class="c">Result</th><th class="c">Specification</th><th class="c">Status</th></tr>'+
+   '<tr><td>FFA (Free Fatty Acid)</td><td class="c">'+blank(t.lab_ffa)+' %</td><td class="c">max 4%</td><td class="c">'+blank(stF)+'</td></tr>'+
+   '<tr><td>Moisture &amp; Impurities</td><td class="c">'+blank(t.lab_moist)+' %</td><td class="c">max 1.5%</td><td class="c">'+blank(stM)+'</td></tr>'+
+   '<tr><td>MIU / Other</td><td class="c" colspan="3">'+blank(t.lab_miu)+'</td></tr></table>'+
+   '<div class="note"><b>LAB RESULT DECISION: '+(res||'____________')+'</b>\n'+(t.lab_note||blank('Notes...'))+'</div>'+
+   '<div class="sig"><div><div class="ln">&nbsp;</div><div class="ti">Lab Analyst</div></div>'+
+   '<div><div class="ln">&nbsp;</div><div class="ti">Warehouse Supervisor</div></div>'+
+   '<div><div class="ln">'+CO.gm+'</div><div class="ti">Approved '+CO.gmTitle+'</div></div></div>';
+  openDoc('Lab Test Result Outbound '+(t.buyer||''),{head:head,body:body});
+}
+function genLabOb(id){const t=S.obs.find(x=>x.id===id);if(t)docLabOb(t);}
+
 // ════════ 4. WEIGHT SLIP ════════
 function docWeight(t){
   const gross=pn(t.bruto), tare=pn(t.tara), net=pn(t.netto_kg)||(gross-tare);
@@ -2037,6 +2067,23 @@ function showDocs(id){
 // ════════════════════════════════════════════════════════
 //  HSB DOCUMENT GENERATOR + Combined PDF + WhatsApp + Drive
 // ════════════════════════════════════════════════════════
+
+function showObDocs(id){
+  const t=S.obs.find(x=>x.id===id);
+  if(!t){toast('Transaction not found','err');return;}
+  const order=['po_buyer','prepay','muat','do_keluar','inv_fp','lunas','done'];
+  const si=order.indexOf(t.stage);
+  const has=function(stg){return si>=order.indexOf(stg);};
+  let btns='';
+  btns+='<button class="btn btn-blue" style="width:100%;margin-bottom:6px;" onclick="genLabOb(\''+id+'\')">🧪 Lab Test Result (Outbound)</button>';
+  document.getElementById('m-title').textContent='📄 Documents (Outbound)';
+  const sub=document.getElementById('m-sub');if(sub)sub.textContent=(t.buyer||('TXN-'+id));
+  document.getElementById('m-body').innerHTML='<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Generate official documents. / Buat dokumen resmi.</div>'+btns;
+  document.getElementById('m-foot-l').innerHTML='';
+  document.getElementById('m-foot-r').innerHTML='<button class="btn btn-ghost" onclick="openOb(\''+id+'\')">← Back</button>';
+  showModal();
+}
+
 const HSB_CO={
   name:'PT HIJAU SUKSES BERSAMA',
   addr:'Green Sedayu Bizpark - Blok GS 5 No.52, Jl. Green Sedayu 5 RT.11/RW.06, Cakung Timur, Cakung, Jakarta Timur - 13910',
@@ -2904,6 +2951,19 @@ function supplierScores(hub){
 }
 
 // ---------- 5. NOTIFICATIONS ----------
+
+// Payment Note SLA: at memo stage, signed nota must be uploaded within 3 days.
+function paymentNoteOverdue(){
+  const now=Date.now();const out=[];
+  S.ibs.forEach(function(t){
+    if(t.stage==='memo' && !(t.docs&&t.docs.nota_kwitansi) && t.stage_start){
+      const days=(now-new Date(t.stage_start).getTime())/86400000;
+      if(days>3)out.push({id:t.id,supplier:t.supplier,days:Math.floor(days)});
+    }
+  });
+  return out;
+}
+
 function buildNotifications(){
   const hub=S.hub;const n=[];
   // hanging prepayments
@@ -2911,6 +2971,8 @@ function buildNotifications(){
   // overdue AR/AP > 60 days
   try{const d=arApData(hub);d.apList.filter(x=>x.days>60).forEach(x=>n.push({type:'warn',icon:'🔴',msg:'AP overdue '+x.days+'d: pay '+x.who+' '+fR(x.amt),tab:'unpaid'}));
     d.arList.filter(x=>x.days>60).forEach(x=>n.push({type:'warn',icon:'🟠',msg:'AR overdue '+x.days+'d: collect '+x.who+' '+fR(x.amt),tab:'unlunas'}));}catch(e){}
+  // Payment Note SLA overdue (>3 days without signed nota)
+  try{paymentNoteOverdue().forEach(function(x){n.push({type:'warn',icon:'📝',msg:'Payment Note >3 hari belum TTD: '+(x.supplier||'')+' ('+x.id+', '+x.days+'d)',tab:'inbound'});});}catch(e){}
   // WB flagged transactions
   S.ibs.filter(t=>t.hub===hub&&t.wb_flag&&!t.paid).forEach(t=>n.push({type:'warn',icon:'⚠️',msg:'Weight diff: '+(t.supplier||'')+' '+f(pn(t.wb_diff_kg))+'kg ('+t.id+')',tab:'inbound'}));
   // tank near full (>95%)

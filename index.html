@@ -2224,14 +2224,20 @@ async function dlCombined(id){
 }
 
 // WhatsApp share (opens chat to supplier with message; PDF must be attached manually OR Drive link if uploaded)
-function waShare(id){
+async function waShare(id){
   const t=S.ibs.find(x=>x.id===id);if(!t)return;
   let phone=(t.hp||'').replace(/[^0-9]/g,'');
   if(phone.startsWith('0'))phone='62'+phone.slice(1);
-  if(!phone){toast('No phone number for this supplier','err');return;}
-  const link=t.gdrive_link?('\n\nDocuments: '+t.gdrive_link):'';
-  const msg='Halo '+(t.supplier||'')+',\n\nBerikut dokumen transaksi UCO '+t.id+' dari '+HSB_CO.name+'.'+link+'\n\nTerima kasih.';
-  window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(msg),'_blank');
+  if(!phone){toast('Nomor HP supplier belum diisi / No phone number for this supplier','err');return;}
+  // 1) Unduh dulu PDF PO supaya siap dilampirkan / Download PO PDF first so it is ready to attach
+  try{ await openSingle(t,{t:'Purchase Order',l:'Purchase Order',h:bPO(t)}); }catch(e){}
+  // 2) Susun pesan WA (sertakan link Drive bila ada) / Build WA message (include Drive link if available)
+  const link=t.gdrive_link?('\n\nLink dokumen (Google Drive): '+t.gdrive_link):'';
+  const attachNote=t.gdrive_link?'' : '\n\n(PDF sudah terunduh di HP Anda — lampirkan lewat ikon klip WhatsApp. / The PDF was downloaded to your phone — attach it via the WhatsApp clip icon.)';
+  const msg='Halo '+(t.supplier||'')+',\n\nBerikut dokumen transaksi UCO '+t.id+' dari '+HSB_CO.name+'.'+link+attachNote+'\n\nTerima kasih.';
+  // 3) Beri jeda singkat agar unduhan mulai sebelum WA terbuka / brief delay so download starts before WA opens
+  setTimeout(function(){ window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(msg),'_blank'); }, 900);
+  toast('PDF diunduh + WhatsApp dibuka / PDF downloaded + WhatsApp opened');
 }
 
 // ---- GOOGLE DRIVE ----

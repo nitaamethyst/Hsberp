@@ -376,11 +376,33 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
   </div>
   <div class="sect-t">Stock Movement Log</div>
   <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Date</th><th>Type</th><th>Ref / Counterparty</th><th class="r">In (Kg)</th><th class="r">Out (Kg)</th><th class="r">Balance (Kg)</th><th class="r">Value</th></tr></thead><tbody id="inv-tb"></tbody></table></div>
+
+  <div class="card mb10" style="margin-top:14px;">
+    <div class="card-t">📒 Kartu Stok per Kategori — Inventory Movement</div>
+    <div class="frow mt10">
+      <div class="fg"><label>Kategori</label><select id="ic-kat" onchange="renderInvCat()"><option value="">Semua</option><option>Bagus</option><option>Semi</option><option>Reject Supplier</option><option>Return Reject Buyer</option><option>Ampas</option></select></div>
+      <div class="fg"><label>Lokasi / Tanki</label><input type="text" id="ic-lok" placeholder="mis. Tank A-1" oninput="renderInvCat()"/></div>
+      <div class="fg"><label>Bulan</label><input type="month" id="ic-bln" onchange="renderInvCat()"/></div>
+      <div class="fg" style="max-width:110px;"><label>&nbsp;</label><button class="btn btn-ghost btn-sm" style="width:100%;" onclick="exportInvCat()">⬇️ Excel</button></div>
+    </div>
+    <div class="g4 mb10" id="ic-cards"></div>
+    <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Tanggal</th><th>Jenis</th><th>Kategori</th><th>Lokasi</th><th>Referensi</th><th class="r">Masuk (kg)</th><th class="r">Keluar (kg)</th><th class="r">Saldo (kg)</th></tr></thead><tbody id="ic-tb"></tbody></table></div>
+  </div>
+  <div class="card mb10">
+    <div class="card-t">📉 Report Stock Opname — Losses Gudang vs Selisih Trading</div>
+    <div class="frow mt10"><div class="fg"><label>Bulan</label><input type="month" id="op-bln" onchange="renderOpnameRpt()"/></div><div class="fg" style="max-width:110px;"><label>&nbsp;</label><button class="btn btn-ghost btn-sm" style="width:100%;" onclick="exportOpnameRpt()">⬇️ Excel</button></div></div>
+    <div class="g4 mb10" id="op-cards"></div>
+    <div class="sect-t">Losses Gudang (opname: buku vs fisik per tanki)</div>
+    <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Tanggal</th><th>Tanki</th><th class="r">Buku (kg)</th><th class="r">Fisik (kg)</th><th class="r">Selisih (kg)</th><th>Oleh</th></tr></thead><tbody id="op-tb1"></tbody></table></div>
+    <div class="sect-t" style="margin-top:12px;">Selisih Trading per Transaksi (klaim supplier vs timbangan + potongan M&amp;I)</div>
+    <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>ID</th><th>Tanggal</th><th>Supplier</th><th class="r">Klaim (kg)</th><th class="r">Aktual (kg)</th><th class="r">Selisih (kg)</th><th class="r">M&amp;I (kg)</th><th>Flag</th></tr></thead><tbody id="op-tb2"></tbody></table></div>
+  </div>
 </div>
 
 <div id="tab-warehouse" style="display:none">
   <div style="font-size:15px;font-weight:700;margin-bottom:4px;">Warehouse — Containers & Operations</div>
   <div class="mut" style="font-size:11px;margin-bottom:12px;">Hub: <b id="wh-hub"></b>. Manage tanks/IBC/cans, receiving, quality split, daily opening stock, and ampas.</div>
+  <div class="g4 mb10" id="wh-dash"></div><div class="g4 mb10" id="wh-dash2"></div>
   <div class="wh-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
     <button class="btn btn-sm wh-st" data-w="cont" onclick="whSub('cont')">🛢️ Containers</button>
     <button class="btn btn-sm btn-ghost wh-st" data-w="recv" onclick="whSub('recv')">📥 Receiving</button>
@@ -1570,6 +1592,141 @@ async function dpApplyOnPay(t,payable){
   return cut;
 }
 
+
+// ---- ⑬ KARTU STOK PER KATEGORI ----
+function invCatMoves(hub){
+  const mv=[];
+  (S.ibs||[]).forEach(function(t){
+    if(t.hub!==hub)return;
+    if(!(pn(t.netto_kg)>0&&_ibReached(t,'bongkar')))return;
+    const lok=t.lokasi_simpan||'-';const ref=(t.no_dn||t.id)+' · '+(t.supplier||'');
+    if(t.ws_items&&t.ws_items.length){t.ws_items.forEach(function(r){mv.push({tgl:t.tanggal,type:'IN',kat:r.kat,lok:lok,ref:ref,masuk:r.kg,keluar:0});});}
+    else{mv.push({tgl:t.tanggal,type:'IN',kat:'Bagus',lok:lok,ref:ref,masuk:pn(t.netto_kg),keluar:0});}
+  });
+  (S.obs||[]).forEach(function(t){
+    if(t.hub!==hub)return;
+    if(!(pn(t.vol_kg)>0&&(t.stage==='done'||_obIdx(t.stage)>_obIdx('muat'))))return;
+    mv.push({tgl:t.tanggal,type:'OUT',kat:'Bagus',lok:t.container_code||'-',ref:(t.no_po_buyer||t.id)+' · '+(t.buyer||''),masuk:0,keluar:pn(t.vol_kg)});
+  });
+  (S.ampas||[]).forEach(function(a){
+    if(a.hub!==hub)return;
+    mv.push({tgl:a.tgl,type:'IN',kat:'Ampas',lok:a.container_code||'-',ref:'Ampas · '+(a.supplier||'-'),masuk:pn(a.qty_kg),keluar:0});
+  });
+  (S.returns||[]).forEach(function(r){
+    if(r.hub!==hub)return;
+    mv.push({tgl:r.tgl,type:'IN',kat:'Return Reject Buyer',lok:r.container_code||'-',ref:'Retur · '+(r.buyer||r.ref||'-'),masuk:pn(r.qty_kg),keluar:0});
+  });
+  (S.opening||[]).forEach(function(o){
+    if(o.hub!==hub)return;const d=pn(o.diff_kg);if(!d)return;
+    mv.push({tgl:o.tgl,type:'ADJ',kat:'Bagus',lok:o.container_code||'-',ref:'Opname (fisik vs buku)',masuk:d>0?d:0,keluar:d<0?-d:0});
+  });
+  mv.sort(function(a,b){return String(a.tgl||'').localeCompare(String(b.tgl||''));});
+  return mv;
+}
+function invCatBalances(hub){
+  const b={};invCatMoves(hub).forEach(function(m){b[m.kat]=(b[m.kat]||0)+m.masuk-m.keluar;});return b;
+}
+let _icRows=[];
+function renderInvCat(){
+  const tb=document.getElementById('ic-tb');if(!tb)return;
+  const kat=(document.getElementById('ic-kat')||{}).value||'';
+  const lok=crmNorm((document.getElementById('ic-lok')||{}).value||'');
+  const bln=(document.getElementById('ic-bln')||{}).value||'';
+  const bal=invCatBalances(S.hub);
+  const cards=document.getElementById('ic-cards');
+  if(cards)cards.innerHTML=['Bagus','Semi','Reject Supplier','Return Reject Buyer','Ampas'].map(function(k){
+    const v=Math.round(bal[k]||0);
+    return '<div class="card '+(k==='Bagus'?'c-green':(v&&k!=='Bagus'?'c-yellow':''))+'"><div class="card-t">'+k+'</div><div class="card-v" style="font-size:13px;">'+f(v)+' kg</div></div>';
+  }).join('');
+  let run=0;const rows=[];
+  invCatMoves(S.hub).forEach(function(m){
+    if(kat&&m.kat!==kat)return;
+    if(lok&&crmNorm(m.lok).indexOf(lok)<0)return;
+    if(bln&&String(m.tgl||'').slice(0,7)!==bln)return;
+    run+=m.masuk-m.keluar;
+    rows.push(Object.assign({saldo:run},m));
+  });
+  _icRows=rows;
+  tb.innerHTML=rows.length?rows.map(function(m){
+    const tp=m.type==='IN'?'<span class="badge b-green">IN</span>':m.type==='OUT'?'<span class="badge b-purple">OUT</span>':'<span class="badge b-yellow">ADJ</span>';
+    return '<tr><td class="mono" style="font-size:10px;">'+(m.tgl||'-')+'</td><td>'+tp+'</td><td>'+m.kat+'</td><td>'+crmEsc(m.lok)+'</td><td style="font-size:10px;">'+crmEsc(m.ref)+'</td><td class="r mono">'+(m.masuk?f(m.masuk):'-')+'</td><td class="r mono">'+(m.keluar?f(m.keluar):'-')+'</td><td class="r mono" style="font-weight:700;">'+f(Math.round(m.saldo))+'</td></tr>';
+  }).join(''):'<tr><td colspan="8" style="text-align:center;padding:16px;color:var(--text3);">Belum ada pergerakan sesuai filter.</td></tr>';
+}
+function _xlsExport(rows,headers,keys,fname){
+  try{
+    if(!window.XLSX){toast('Engine Excel belum termuat','err');return;}
+    const data=[headers].concat(rows.map(function(r){return keys.map(function(k){return r[k];});}));
+    const ws=XLSX.utils.aoa_to_sheet(data);
+    ws['!cols']=headers.map(function(h){return {wch:Math.max(12,h.length+2)};});
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Data');
+    XLSX.writeFile(wb,fname);toast('⬇️ '+fname);
+  }catch(e){toast('Export gagal: '+e.message,'err');}
+}
+function exportInvCat(){
+  renderInvCat();
+  _xlsExport(_icRows,['Tanggal','Jenis','Kategori','Lokasi','Referensi','Masuk (kg)','Keluar (kg)','Saldo (kg)'],
+    ['tgl','type','kat','lok','ref','masuk','keluar','saldo'],'KartuStok_'+S.hub+'_'+td()+'.xlsx');
+}
+
+// ---- ⑮ REPORT OPNAME: losses gudang vs selisih trading ----
+let _opR1=[],_opR2=[];
+function renderOpnameRpt(){
+  const t1=document.getElementById('op-tb1');if(!t1)return;
+  const bln=(document.getElementById('op-bln')||{}).value||'';
+  const inM=function(d){return !bln||String(d||'').slice(0,7)===bln;};
+  const ops=(S.opening||[]).filter(function(o){return o.hub===S.hub&&inM(o.tgl);});
+  const lossG=ops.reduce(function(a,o){return a+Math.min(0,pn(o.diff_kg));},0);
+  _opR1=ops.map(function(o){return {tgl:o.tgl,lok:o.container_code||'-',buku:pn(o.book_kg),fisik:pn(o.sounding_kg),selisih:pn(o.diff_kg),by:o.by_user||'-'};});
+  t1.innerHTML=_opR1.length?_opR1.map(function(o){
+    return '<tr><td class="mono" style="font-size:10px;">'+o.tgl+'</td><td>'+crmEsc(o.lok)+'</td><td class="r mono">'+f(o.buku)+'</td><td class="r mono">'+f(o.fisik)+'</td><td class="r mono" style="color:'+(o.selisih<0?'var(--red)':'var(--green)')+';font-weight:700;">'+f(o.selisih)+'</td><td style="font-size:10px;">'+crmEsc(o.by)+'</td></tr>';
+  }).join(''):'<tr><td colspan="6" style="text-align:center;padding:14px;color:var(--text3);">Belum ada opname bulan ini. Input di tab Warehouse → Opening Stock.</td></tr>';
+  const ibs=(S.ibs||[]).filter(function(t){return t.hub===S.hub&&inM(t.tanggal)&&(pn(t.wb_diff_kg)!==0||pn(t.mi_kg)>0);});
+  const lossT=ibs.reduce(function(a,t){return a+Math.min(0,-Math.abs(pn(t.wb_diff_kg)));},0);
+  const miT=ibs.reduce(function(a,t){return a+pn(t.mi_kg);},0);
+  _opR2=ibs.map(function(t){return {id:t.id,tgl:t.tanggal,sup:t.supplier||'-',klaim:pn(t.wb_supplier_kg),aktual:pn(t.wb_actual_kg)||pn(t.netto_kg),selisih:pn(t.wb_diff_kg),mi:pn(t.mi_kg),flag:t.wb_flag?'⚠️':''};});
+  const t2=document.getElementById('op-tb2');
+  t2.innerHTML=_opR2.length?_opR2.map(function(r){
+    return '<tr style="cursor:pointer;" onclick="openIb(\''+r.id+'\')"><td class="mono" style="font-size:9px;">'+r.id+'</td><td class="mono" style="font-size:10px;">'+r.tgl+'</td><td>'+crmEsc(r.sup)+'</td><td class="r mono">'+f(r.klaim)+'</td><td class="r mono">'+f(r.aktual)+'</td><td class="r mono" style="color:'+(r.selisih<0?'var(--red)':'inherit')+';">'+f(r.selisih)+'</td><td class="r mono">'+f(r.mi)+'</td><td>'+r.flag+'</td></tr>';
+  }).join(''):'<tr><td colspan="8" style="text-align:center;padding:14px;color:var(--text3);">Tidak ada selisih trading bulan ini.</td></tr>';
+  const cards=document.getElementById('op-cards');
+  if(cards)cards.innerHTML=
+    '<div class="card '+(lossG<0?'c-red':'')+'"><div class="card-t">Losses Gudang (opname)</div><div class="card-v" style="font-size:13px;color:'+(lossG<0?'var(--red)':'inherit')+';">'+f(Math.round(lossG))+' kg</div></div>'+
+    '<div class="card"><div class="card-t">Transaksi ber-selisih</div><div class="card-v">'+_opR2.length+'</div></div>'+
+    '<div class="card c-yellow"><div class="card-t">Total M&amp;I dipotong</div><div class="card-v" style="font-size:13px;">'+f(Math.round(miT))+' kg</div></div>'+
+    '<div class="card"><div class="card-t">Opname tercatat</div><div class="card-v">'+_opR1.length+'</div></div>';
+}
+function exportOpnameRpt(){
+  renderOpnameRpt();
+  if(!window.XLSX){toast('Engine Excel belum termuat','err');return;}
+  const wb=XLSX.utils.book_new();
+  const w1=XLSX.utils.aoa_to_sheet([['Tanggal','Tanki','Buku (kg)','Fisik (kg)','Selisih (kg)','Oleh']].concat(_opR1.map(function(o){return [o.tgl,o.lok,o.buku,o.fisik,o.selisih,o.by];})));
+  const w2=XLSX.utils.aoa_to_sheet([['ID','Tanggal','Supplier','Klaim (kg)','Aktual (kg)','Selisih (kg)','M&I (kg)','Flag']].concat(_opR2.map(function(r){return [r.id,r.tgl,r.sup,r.klaim,r.aktual,r.selisih,r.mi,r.flag];})));
+  XLSX.utils.book_append_sheet(wb,w1,'Losses Gudang');
+  XLSX.utils.book_append_sheet(wb,w2,'Selisih Trading');
+  XLSX.writeFile(wb,'Opname_'+S.hub+'_'+td()+'.xlsx');toast('⬇️ Report opname terunduh');
+}
+
+// ---- ⑰ DASHBOARD GUDANG (kg only) ----
+function renderWhDash(){
+  const el=document.getElementById('wh-dash');if(!el)return;
+  const bal=invCatBalances(S.hub);
+  el.innerHTML=['Bagus','Semi','Reject Supplier','Ampas'].map(function(k){
+    return '<div class="card '+(k==='Bagus'?'c-green':'')+'"><div class="card-t">📦 Stok '+k+'</div><div class="card-v" style="font-size:13px;">'+f(Math.round(bal[k]||0))+' kg</div></div>';
+  }).join('');
+  const el2=document.getElementById('wh-dash2');if(!el2)return;
+  const gudangStages=['terima','sampel','timbang','bongkar','upload'];
+  const pending=(S.ibs||[]).filter(function(t){return t.hub===S.hub&&gudangStages.indexOf(t.stage)>=0;}).length;
+  const muat=(S.obs||[]).filter(function(t){return t.hub===S.hub&&t.stage==='muat';}).length;
+  const mm=new Date().toISOString().slice(0,7);
+  const wbF=(S.ibs||[]).filter(function(t){return t.hub===S.hub&&t.wb_flag&&String(t.tanggal||'').slice(0,7)===mm;}).length;
+  const late=(S.ibs||[]).filter(function(t){return t.hub===S.hub&&gudangStages.indexOf(t.stage)>=0&&ibLate(t);}).length;
+  el2.innerHTML=
+    '<div class="card '+(pending?'c-yellow':'')+'"><div class="card-t">⏳ Menunggu Aksi Gudang</div><div class="card-v">'+pending+'</div><div class="card-s">inbound aktif</div></div>'+
+    '<div class="card c-purple"><div class="card-t">🚚 Siap Muat</div><div class="card-v">'+muat+'</div><div class="card-s">outbound</div></div>'+
+    '<div class="card '+(late?'c-red':'')+'"><div class="card-t">🚨 SLA Telat</div><div class="card-v" style="'+(late?'color:var(--red);':'')+'">'+late+'</div></div>'+
+    '<div class="card '+(wbF?'c-red':'')+'"><div class="card-t">⚠️ WB Diff bulan ini</div><div class="card-v">'+wbF+'</div></div>';
+}
+
 // ---- WEIGHT SLIP MULTI-KATEGORI + potongan M&I otomatis ----
 const WS_KAT=['Bagus','Semi','Reject Supplier','Return Reject Buyer','Ampas'];
 function wsRowHtml(r){
@@ -1911,6 +2068,7 @@ function _invHubCard(c){
 }
 function renderInventory(){
   const hub=S.hub;
+  try{renderInvCat();renderOpnameRpt();}catch(e){}
   const ih=document.getElementById('inv-hub');if(ih)ih.textContent=hub;
   // both-hubs comparison + combined total
   const cJ=_invCalc('Jakarta'),cM=_invCalc('Medan');
@@ -3175,6 +3333,7 @@ async function submitReturn(){
 // ---- RENDER WAREHOUSE ----
 function renderWarehouse(){
   const hub=S.hub;
+  try{renderWhDash();}catch(e){}
   const wh=document.getElementById('wh-hub');if(wh)wh.textContent=hub;
   // dates default
   ['r-tgl','o-tgl','am-tgl','rt-tgl'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.value)e.value=td();});

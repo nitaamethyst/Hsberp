@@ -255,8 +255,8 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
     <div><div style="font-size:17px;font-weight:700;">Daily UCO Operations</div><div style="font-size:11px;color:var(--text2);margin-top:2px;" id="dash-date"></div></div>
     <div class="gap8">
-      <button class="btn btn-yellow" onclick="openDpMonitor()">💰 DP Monitor</button> <button class="btn btn-green btn-lg" id="btn-new-ib" onclick="openNewIb()">+ New Purchase</button>
-      <button class="btn btn-purple btn-lg" id="btn-new-ob" onclick="openNewOb()">+ New Sale</button>
+      <button class="btn btn-ghost btn-sm" onclick="exportIbs()">⬇️ Excel</button> <button class="btn btn-yellow" onclick="openDpMonitor()">💰 DP Monitor</button> <button class="btn btn-green btn-lg" id="btn-new-ib" onclick="openNewIb()">+ New Purchase</button>
+      <button class="btn btn-ghost btn-sm" onclick="exportObs()">⬇️ Excel</button> <button class="btn btn-purple btn-lg" id="btn-new-ob" onclick="openNewOb()">+ New Sale</button>
     </div>
   </div>
   <div id="dash-kasalert"></div>
@@ -291,6 +291,13 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
 </div>
 
 <div id="tab-kas" style="display:none">
+  <div class="card mb10">
+    <div class="card-t" style="display:flex;justify-content:space-between;align-items:center;">🏦 Saldo per Rekening Bank <span><button class="btn btn-ghost btn-sm" onclick="exportKas()">⬇️ Kas Harian</button> <button class="btn btn-ghost btn-sm" onclick="exportBank()">⬇️ Bank</button></span></div>
+    <div class="mut" style="font-size:10px;margin:4px 0 8px;">Saldo awal diisi Finance/Admin; pembayaran keluar dari ERP terpotong otomatis. Tap kartu untuk riwayat.</div>
+    <div class="g4 mb10" id="bank-cards"></div>
+    <div id="bank-moves"></div>
+  </div>
+  <div class="card mb10"><div class="card-t">🕵️ Tracing Rekon Non-PPN</div><div id="nonppn-sec" class="mt10"></div></div>
   <div style="font-size:15px;font-weight:700;margin-bottom:12px;">Daily Cash Report — Finance</div>
   <div class="card mb10">
     <div class="card-t">📝 Enter Morning Balance</div>
@@ -319,7 +326,7 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
     <div class="card" style="border-color:var(--cyan);"><div class="card-t">📊 Variable Cost</div><div class="card-v mono" id="exp-var" style="font-size:15px;color:var(--cyan);">Rp 0</div><div class="card-s">this hub</div></div>
   </div>
   <div class="card mb10">
-    <div class="card-t">➕ Record New Expense</div>
+    <div class="card-t" style="display:flex;justify-content:space-between;">➕ Record New Expense <button class="btn btn-ghost btn-sm" onclick="exportExpenses()">⬇️ Excel</button></div>
     <div class="frow mt10">
       <div class="fg"><label>Date<span class="req">*</span></label><input type="date" id="exp-tgl"/></div>
       <div class="fg"><label>Cost Type<span class="req">*</span></label><select id="exp-ctype"><option value="Fixed">Fixed Cost</option><option value="Variable">Variable Cost</option></select></div>
@@ -593,6 +600,7 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
       <select class="sinp" id="crm-f" style="width:auto;" onchange="renderCrm()"><option value="">Semua Tipe</option><option value="supplier">Supplier</option><option value="buyer">Buyer</option></select>
       <select class="sinp" id="crm-fs" style="width:auto;" onchange="renderCrm()"><option value="">Semua Status</option><option>Prospek</option><option>Negosiasi</option><option>Aktif</option><option>Dorman</option><option>Blacklist</option></select>
       <input class="sinp" type="text" id="crm-q" placeholder="🔍 Nama / kota / HP..." oninput="renderCrm()">
+      <button class="btn btn-ghost btn-sm" onclick="exportCrm()">⬇️ Excel</button>
       <button class="btn btn-blue" id="btn-new-crm" onclick="openCrmNew()">+ Kontak Baru</button>
     </div>
   </div>
@@ -948,7 +956,7 @@ function subscribeRealtime(){
     });
   realtimeChans.push(ch);
 }
-function mk(key){return function(payload){
+function mk(key){return function(payload){_rtTouch();
   const arr=S[key];if(!arr)return;
   if(payload.eventType==='DELETE'){S[key]=arr.filter(x=>x.id!==payload.old.id);}
   else{const i=arr.findIndex(x=>x.id===payload.new.id);if(i>=0)arr[i]=payload.new;else arr.unshift(payload.new);}
@@ -1263,7 +1271,7 @@ async function advIb(id){
   else if(t.stage==='upload'){const sh=document.getElementById('a-sh').value;if(!sh){toast('Confirm document share','err');return;}t.shared_wa=sh;mv('memo','Docs generated & shared');}
   else if(t.stage==='memo'){const po=document.getElementById('a-po').value.trim();const rek=document.getElementById('a-rek').value.trim();if(!po){toast('No. Nota required','err');return;}if(!rek){toast('No. rekening supplier wajib diisi sebelum nota terkirim / Supplier bank account required','err');return;}const items=notaCollect();if(!items.length){toast('Minimal 1 baris nota','err');return;}if(!t.docs.nota_kwitansi){toast('Upload Nota yang sudah TTD supplier dulu / Upload supplier-signed nota first','err');return;}const sub=items.reduce(function(a,r){return a+r.amt;},0);let ppn=0;if(t.ppn_mode==='exclude'){ppn=Math.round(sub*0.11);}else if(t.ppn_mode==='include'){ppn=Math.round(sub*11/111);}const total=(t.ppn_mode==='exclude')?(sub+ppn):sub;t.subtotal_nota=sub;t.ppn_amt=ppn;if(total<=0){toast('Total nota tidak valid (≤0)','err');return;}const eff=total/(pn(t.netto_kg)||1);if(!priceAllowed(eff)){toast('Harga efektif '+fR(eff)+'/kg exceeds cap '+fR(priceCap())+' — needs GM/Admin approval','err');return;}const _mg=marginCheck(t.hub,eff);if(_mg.warn&&_mg.sell>0){if(!confirm('⚠️ Thin/negative margin!\nBuy eff: '+fR(eff)+'/kg\nRef sell: '+fR(_mg.sell)+'/kg\nMargin: '+_mg.pct.toFixed(1)+'% (min '+_mg.minPct+'%)\n\nProceed anyway?'))return;await audit('LOW_MARGIN','inbounds',t.id,{buy:eff,sell:_mg.sell,pct:_mg.pct.toFixed(1)},null);}if(priceCap()>0&&eff>priceCap()){t.price_override_by=S.nama;t.price_override_at=new Date().toISOString();await audit('PRICE_OVERRIDE','inbounds',t.id,{price:eff,cap:priceCap()},eff);}t.no_po=po;t.supplier_rek=rek;t.nota_items=items;t.harga_aktual=Math.round(eff);t.total_bayar=total;t.met_bayar=document.getElementById('a-mb').value;try{crmSyncFromTxn('supplier',t.supplier,t.hp,t.city,t.prov,t.hub,rek);}catch(e){}mv('verif','Nota: '+po+' ('+items.length+' baris), Total: '+fR(total));}
   else if(t.stage==='verif'){const v=document.getElementById('a-vf').value;if(!v){toast('Select decision','err');return;}if(v==='Hold'){t.held_reason=document.getElementById('a-vn').value.trim()||'Finance: tidak sesuai';t.log.push({s:'verif',by:S.nama,at:new Date().toISOString(),n:'Held: '+t.held_reason});t.stage='ditahan';await saveIb(t);closeModal();toast('Held Finance','err');return;}t.verified=true;mv('bayar','Terverifikasi');}
-  else if(t.stage==='bayar'){if(!financeProofGate())return;const tb=document.getElementById('a-tb').value;if(!tb){toast('Payment date required','err');return;}const _pacc=document.getElementById('a-payacc');if(_pacc){if(!_pacc.value){toast('Pilih rekening pembayaran / Select payment account','err');return;}t.pay_from_acc=_pacc.value;}if(t.paid){toast('Already paid - double payment blocked','err');return;}if(!t.docs||!t.docs.bukti_bayar){toast('Upload bukti transfer dulu / Transfer proof required','err');return;}if(pn(t.dp_supplier_amt)>0&&t.dp_gm_status==='pending'){toast('DP menunggu approval GM - pembayaran diblokir','err');return;}if(pn(t.netto_kg)<=0&&!t.virtual){toast('Cannot pay: goods not yet weighed/received','err');return;}const wsRef=t.no_ws||'';if(wsRef&&!(t.payments&&t.payments.length)){const dup=S.ibs.find(x=>x.id!==t.id&&x.paid&&x.no_ws&&x.no_ws===wsRef&&x.hub===t.hub);if(dup){toast('WS '+wsRef+' already paid in '+dup.id+' - blocked','err');return;}}const _dpS=(t.dp_gm_status==='rejected')?0:pn(t.dp_supplier_amt);let _base=Math.max(0,(t.total_bayar||0)-_dpS);if(!t.dp_cuts_applied){const _sCut=await dpApplyOnPay(t,_base);t.dp_cuts_applied=true;t.payable_net=Math.max(0,_base-(_sCut||0));}const payable=pn(t.payable_net!=null?t.payable_net:_base);const paidSoFar=(t.payments||[]).reduce(function(a,p){return a+pn(p.amt);},0);const remaining=Math.max(0,payable-paidSoFar);let amt=pn(document.getElementById('a-payamt').value);if(!amt)amt=remaining;if(amt<=0){toast('Jumlah bayar tidak valid','err');return;}if(amt>remaining+1){toast('Jumlah melebihi sisa tagihan '+fR(remaining),'err');return;}t.payments=(t.payments||[]);t.payments.push({amt:amt,date:tb,ref:document.getElementById('a-rf').value.trim(),acc:t.pay_from_acc||'',by:S.nama,at:new Date().toISOString()});const newPaid=paidSoFar+amt;t.ref_bayar=document.getElementById('a-rf').value.trim();if(newPaid>=payable-1){t.final_paid=payable;if(_dpS>0)t.dp_supplier_paid=true;t.paid=true;t.paid_at=new Date().toISOString();t.pay_locked=true;t.pay_ws_ref=wsRef;t.stage='done';t.log.push({s:'done',by:S.nama,at:new Date().toISOString(),n:'SETTLED ('+t.payments.length+'x pembayaran) total '+fR(newPaid)+(_dpS>0?' + DP txn '+fR(_dpS):'')+(t.dp_saldo_cut?' + saldo DP '+fR(t.dp_saldo_cut):'')});await audit('PAY','inbounds',t.id,{ws:wsRef,supplier:t.supplier,partials:t.payments.length,dp:_dpS,net:newPaid},pn(t.total_bayar));draftClear();await saveIb(t);closeModal();toast('LUNAS - pembayaran ke-'+t.payments.length+' dikonfirmasi');return;}else{t.log.push({s:'bayar',by:S.nama,at:new Date().toISOString(),n:'PARTIAL PAY '+fR(amt)+' (total '+fR(newPaid)+' dari '+fR(payable)+', sisa '+fR(payable-newPaid)+')'});await audit('PARTIAL_PAY','inbounds',t.id,{ws:wsRef,supplier:t.supplier,amt:amt,paid:newPaid,remaining:payable-newPaid},amt);await saveIb(t);closeModal();toast('Pembayaran parsial '+fR(amt)+' tercatat - sisa '+fR(payable-newPaid));return;}}
+  else if(t.stage==='bayar'){if(!financeProofGate())return;const tb=document.getElementById('a-tb').value;if(!tb){toast('Payment date required','err');return;}const _pacc=document.getElementById('a-payacc');if(_pacc){if(!_pacc.value){toast('Pilih rekening pembayaran / Select payment account','err');return;}t.pay_from_acc=_pacc.value;}if(t.paid){toast('Already paid - double payment blocked','err');return;}if(!t.docs||!t.docs.bukti_bayar){toast('Upload bukti transfer dulu / Transfer proof required','err');return;}if(pn(t.dp_supplier_amt)>0&&t.dp_gm_status==='pending'){toast('DP menunggu approval GM - pembayaran diblokir','err');return;}if(pn(t.netto_kg)<=0&&!t.virtual){toast('Cannot pay: goods not yet weighed/received','err');return;}const wsRef=t.no_ws||'';if(wsRef&&!(t.payments&&t.payments.length)){const dup=S.ibs.find(x=>x.id!==t.id&&x.paid&&x.no_ws&&x.no_ws===wsRef&&x.hub===t.hub);if(dup){toast('WS '+wsRef+' already paid in '+dup.id+' - blocked','err');return;}}const _dpS=(t.dp_gm_status==='rejected')?0:pn(t.dp_supplier_amt);let _base=Math.max(0,(t.total_bayar||0)-_dpS);if(!t.dp_cuts_applied){const _sCut=await dpApplyOnPay(t,_base);t.dp_cuts_applied=true;t.payable_net=Math.max(0,_base-(_sCut||0));}const payable=pn(t.payable_net!=null?t.payable_net:_base);const paidSoFar=(t.payments||[]).reduce(function(a,p){return a+pn(p.amt);},0);const remaining=Math.max(0,payable-paidSoFar);let amt=pn(document.getElementById('a-payamt').value);if(!amt)amt=remaining;if(amt<=0){toast('Jumlah bayar tidak valid','err');return;}if(amt>remaining+1){toast('Jumlah melebihi sisa tagihan '+fR(remaining),'err');return;}t.payments=(t.payments||[]);t.payments.push({amt:amt,date:tb,ref:document.getElementById('a-rf').value.trim(),acc:t.pay_from_acc||'',by:S.nama,at:new Date().toISOString()});const newPaid=paidSoFar+amt;t.ref_bayar=document.getElementById('a-rf').value.trim();if(newPaid>=payable-1){t.final_paid=payable;if(_dpS>0)t.dp_supplier_paid=true;t.paid=true;t.paid_at=new Date().toISOString();t.pay_locked=true;t.pay_ws_ref=wsRef;t.stage='done';t.log.push({s:'done',by:S.nama,at:new Date().toISOString(),n:'SETTLED ('+t.payments.length+'x pembayaran) total '+fR(newPaid)+(_dpS>0?' + DP txn '+fR(_dpS):'')+(t.dp_saldo_cut?' + saldo DP '+fR(t.dp_saldo_cut):'')});await audit('PAY','inbounds',t.id,{ws:wsRef,supplier:t.supplier,partials:t.payments.length,dp:_dpS,net:newPaid},pn(t.total_bayar));draftClear();await saveIb(t);closeModal();toast('LUNAS - pembayaran ke-'+t.payments.length+' dikonfirmasi');try{driveUpload(t.id,true);}catch(e){}return;}else{t.log.push({s:'bayar',by:S.nama,at:new Date().toISOString(),n:'PARTIAL PAY '+fR(amt)+' (total '+fR(newPaid)+' dari '+fR(payable)+', sisa '+fR(payable-newPaid)+')'});await audit('PARTIAL_PAY','inbounds',t.id,{ws:wsRef,supplier:t.supplier,amt:amt,paid:newPaid,remaining:payable-newPaid},amt);await saveIb(t);closeModal();toast('Pembayaran parsial '+fR(amt)+' tercatat - sisa '+fR(payable-newPaid));return;}}
   await saveIb(t);closeModal();toast('Stage advanced');
 }
 
@@ -1599,6 +1607,107 @@ async function dpApplyOnPay(t,payable){
 }
 
 
+
+
+// ---- ㉕ EXPORT EXCEL PER TAB/ROLE (xlsx bertabel, bukan PDF) ----
+function _rupOk(){return S.role!=='Gudang';}
+function exportIbs(){
+  const rows=(S.ibs||[]).filter(t=>t.hub===S.hub).map(function(t){
+    const r={id:t.id,tgl:t.tanggal,supplier:t.supplier,kategori:t.kategori||'',inco:t.incoterm||'',dn:t.no_dn||'',ws:t.no_ws||'',nota:t.no_po||'',netto:pn(t.netto_kg),stage:t.stage,virtual:t.virtual?'YA':''};
+    if(_rupOk()){r.harga=pn(t.harga_aktual);r.total=pn(t.total_bayar);r.ppn=pn(t.ppn_amt);r.fee=pn(t.fee_amt);r.logistik=pn(t.logistik_amt);r.lain=pn(t.other_amt);r.dibayar=(t.payments||[]).reduce((a,p)=>a+pn(p.amt),0);}
+    return r;});
+  const ks=Object.keys(rows[0]||{id:1});
+  _xlsExport(rows,ks.map(k=>k.toUpperCase()),ks,'Purchasing_'+S.hub+'_'+td()+'.xlsx');
+}
+function exportObs(){
+  const rows=(S.obs||[]).filter(t=>t.hub===S.hub).map(function(t){
+    const r={id:t.id,tgl:t.tanggal,buyer:t.buyer,po:t.no_po_buyer||'',vol:pn(t.vol_kg),stage:t.stage,virtual:t.virtual?'YA':''};
+    if(_rupOk()){r.nilai=pn(t.nilai_kontrak);r.dp=pn(t.prepay_amt);r.fee=pn(t.fee_amt);r.logistik=pn(t.logistik_amt);r.lain=pn(t.other_amt);}
+    return r;});
+  const ks=Object.keys(rows[0]||{id:1});
+  _xlsExport(rows,ks.map(k=>k.toUpperCase()),ks,'Sales_'+S.hub+'_'+td()+'.xlsx');
+}
+function exportExpenses(){
+  const rows=(S.expenses||[]).filter(e=>e.hub===S.hub).map(e=>({tgl:e.tgl,coa:e.category,tipe:e.cost_type,ket:e.description||'',jumlah:pn(e.amount),oleh:e.by_user||''}));
+  _xlsExport(rows,['Tanggal','CoA','Tipe','Keterangan','Jumlah (Rp)','Oleh'],['tgl','coa','tipe','ket','jumlah','oleh'],'Expenses_'+S.hub+'_'+td()+'.xlsx');
+}
+function exportCrm(){
+  const rows=(S.crm||[]).map(function(c){const tx=crmTxns(c);return {nama:c.name,tipe:c.type,hp:c.hp||'',kota:c.city||'',bank:((c.bank_name||'')+' '+(c.bank_acc||'')).trim(),status:c.status||'',txn:tx.count,vol:tx.vol,last:tx.last||'',fu:c.next_fu||''};});
+  _xlsExport(rows,['Nama','Tipe','HP','Kota','Rekening','Status','Txn','Vol (kg)','Last Txn','Follow-up'],['nama','tipe','hp','kota','bank','status','txn','vol','last','fu'],'CRM_'+td()+'.xlsx');
+}
+function exportKas(){
+  const rows=(S.kas||[]).filter(k=>k.hub===S.hub).map(k=>({tgl:k.tgl,saldo:pn(k.saldo),petty:pn(k.petty),total:pn(k.saldo)+pn(k.petty),oleh:k.by_user||''}));
+  _xlsExport(rows,['Tanggal','Saldo Kas','Petty Cash','Total','Oleh'],['tgl','saldo','petty','total','oleh'],'Kas_'+S.hub+'_'+td()+'.xlsx');
+}
+
+// ---- ㉓ SALDO PER REKENING BANK ----
+function bankOutflows(code){
+  const out=[];
+  (S.ibs||[]).forEach(function(t){
+    (t.payments||[]).forEach(function(p){if((p.acc||'')===code)out.push({tgl:p.date,ref:t.id+' · '+(t.supplier||''),amt:pn(p.amt),by:p.by||''});});
+    if((!t.payments||!t.payments.length)&&t.paid&&(t.pay_from_acc||'')===code&&pn(t.final_paid)>0){out.push({tgl:(t.paid_at||'').slice(0,10),ref:t.id+' · '+(t.supplier||''),amt:pn(t.final_paid),by:''});}
+  });
+  out.sort(function(a,b){return String(b.tgl||'').localeCompare(String(a.tgl||''));});
+  return out;
+}
+let _bankRows=[];
+function renderBank(){
+  const el=document.getElementById('bank-cards');if(!el)return;
+  _bankRows=[];
+  el.innerHTML=(S.banks||[]).map(function(b){
+    const outs=bankOutflows(b.code);
+    const tot=outs.reduce(function(a,o){return a+o.amt;},0);
+    const saldo=pn(b.saldo_awal)-tot;
+    outs.forEach(function(o){_bankRows.push({acc:b.code,tgl:o.tgl,ref:o.ref,amt:o.amt});});
+    const editBtn=can('Finance')?'<button class="btn btn-ghost btn-sm" style="font-size:8px;padding:2px 5px;" onclick="event.stopPropagation();setSaldoAwal(\''+b.id+'\')">set awal</button>':'';
+    return '<div class="card" style="cursor:pointer;" onclick="showBankMoves(\''+crmEsc(b.code)+'\')"><div class="card-t">'+crmEsc(b.code)+' '+editBtn+'</div><div class="card-v mono" style="font-size:13px;color:'+(saldo<0?'var(--red)':'var(--green)')+';">'+fRb(saldo)+'</div><div class="card-s">awal '+fRb(pn(b.saldo_awal))+' − keluar '+fRb(tot)+'</div></div>';
+  }).join('')||'<div class="mut" style="font-size:11px;">Belum ada rekening di Admin → Bank Accounts.</div>';
+}
+async function setSaldoAwal(bid){
+  if(!can('Finance')){toast('Finance/Admin only','err');return;}
+  const b=(S.banks||[]).find(x=>String(x.id)===String(bid));if(!b)return;
+  const v=prompt('Saldo awal rekening '+b.code+' (Rp):',b.saldo_awal||'');
+  if(v===null)return;
+  const {error}=await sb.from('bank_accounts').update({saldo_awal:pn(v)}).eq('id',b.id);
+  if(error){toast('Gagal: '+error.message,'err');return;}
+  b.saldo_awal=pn(v);await audit('BANK_SALDO_SET','bank_accounts',b.id,{code:b.code},pn(v));
+  toast('Saldo awal '+b.code+' diset');renderBank();
+}
+function showBankMoves(code){
+  const el=document.getElementById('bank-moves');if(!el)return;
+  const outs=bankOutflows(code);
+  el.innerHTML='<div class="sect-t">Riwayat keluar — '+crmEsc(code)+'</div><div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Tanggal</th><th>Referensi</th><th class="r">Jumlah</th></tr></thead><tbody>'+
+    (outs.length?outs.map(function(o){return '<tr><td class="mono" style="font-size:10px;">'+(o.tgl||'-')+'</td><td style="font-size:10px;">'+crmEsc(o.ref)+'</td><td class="r mono">'+fR(o.amt)+'</td></tr>';}).join(''):'<tr><td colspan="3" style="text-align:center;padding:12px;color:var(--text3);">Belum ada pembayaran dari rekening ini.</td></tr>')+
+    '</tbody></table></div>';
+}
+function exportBank(){renderBank();_xlsExport(_bankRows,['Rekening','Tanggal','Referensi','Jumlah (Rp)'],['acc','tgl','ref','amt'],'SaldoBank_'+S.hub+'_'+td()+'.xlsx');}
+
+// ---- ㉔ TRACING REKON NON-PPN ----
+function renderNonPpn(){
+  const el=document.getElementById('nonppn-sec');if(!el)return;
+  const accs=(S.banks||[]).filter(function(b){return b.is_nonppn;});
+  if(!accs.length){el.innerHTML='<div class="mut" style="font-size:10px;">Tandai rekening non-PPN: Admin → Bank Accounts (kolom is_nonppn) atau minta GM set lewat SQL.</div>';return;}
+  let rows=[];let warn=0;
+  accs.forEach(function(b){
+    (S.ibs||[]).forEach(function(t){
+      (t.payments||[]).forEach(function(p){
+        if((p.acc||'')!==b.code)return;
+        const mix=(t.ppn_mode&&t.ppn_mode!=='non');if(mix)warn++;
+        rows.push({acc:b.code,tgl:p.date,id:t.id,sup:t.supplier||'-',amt:pn(p.amt),ppn:t.ppn_mode||'non',mix:mix});
+      });
+    });
+  });
+  rows.sort(function(a,b){return String(b.tgl||'').localeCompare(String(a.tgl||''));});
+  window._npRows=rows;
+  const tot=rows.reduce(function(a,r){return a+r.amt;},0);
+  el.innerHTML='<div class="g2 mb10"><div class="card c-yellow"><div class="card-t">Total keluar via non-PPN</div><div class="card-v mono" style="font-size:13px;">'+fRb(tot)+'</div></div>'+
+    '<div class="card '+(warn?'c-red':'')+'"><div class="card-t">⚠️ Transaksi PPN dibayar dari non-PPN</div><div class="card-v">'+warn+'</div></div></div>'+
+    '<div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Rekening</th><th>Tanggal</th><th>Transaksi</th><th>Supplier</th><th class="r">Jumlah</th><th>PPN</th></tr></thead><tbody>'+
+    (rows.length?rows.map(function(r){return '<tr'+(r.mix?' style="background:rgba(239,68,68,.08);"':'')+' onclick="openIb(\''+r.id+'\')" style="cursor:pointer;"><td class="mono" style="font-size:9px;">'+crmEsc(r.acc)+'</td><td class="mono" style="font-size:10px;">'+r.tgl+'</td><td class="mono" style="font-size:9px;">'+r.id+'</td><td>'+crmEsc(r.sup)+'</td><td class="r mono">'+fR(r.amt)+'</td><td>'+(r.mix?'<span class="badge b-red">'+r.ppn+' ⚠️</span>':'<span class="badge b-gray">non</span>')+'</td></tr>';}).join(''):'<tr><td colspan="6" style="text-align:center;padding:12px;color:var(--text3);">Belum ada pembayaran via rekening non-PPN.</td></tr>')+
+    '</tbody></table></div>'+
+    '<button class="btn btn-ghost btn-sm mt10" onclick="_xlsExport(window._npRows||[],[\'Rekening\',\'Tanggal\',\'Transaksi\',\'Supplier\',\'Jumlah\',\'PPN\'],[\'acc\',\'tgl\',\'id\',\'sup\',\'amt\',\'ppn\'],\'RekonNonPPN_\'+td()+\'.xlsx\')">⬇️ Excel</button>';
+}
+
 // ---- ⑬ KARTU STOK PER KATEGORI ----
 function invCatMoves(hub){
   const mv=[];
@@ -1932,6 +2041,7 @@ function viewPettyProof(kasId,idx){
 }
 
 function renderKasH(){
+  try{renderBank();renderNonPpn();}catch(e){}
   if(typeof _pettyItems!=='undefined'&&!_pettyItems.length){try{renderPettyItems();}catch(e){}}
   const reports=S.kas.filter(k=>k.hub===S.hub);
   const tb=document.getElementById('kas-tb');
@@ -2913,7 +3023,19 @@ function bProof(t){
 function _loc(t){const c=t.city||'',p=t.prov||'';return (c&&p)?(c+', '+p):(c||p||(t.hub||''));}
 
 // build list of {title,label,inner} pages for a transaction based on completeness
+
+function bSalesDoc(t){
+  return _meta([['SO / PO Buyer',t.no_po_buyer||t.id],['Date',_d(t.tanggal)||_today()]])+
+  '<div class="two"><div class="box"><div class="lbl">Buyer</div><div><b>'+(t.buyer||'-')+'</b></div><div class="mut">'+(t.city||'')+'</div></div>'+
+  '<div class="box"><div class="lbl">Hub</div><div>'+(t.hub||'-')+(t.virtual?' · VIRTUAL':'')+'</div></div></div>'+
+  '<table><thead><tr><th>Description</th><th class="r">Qty (Kg)</th><th class="r">Nilai Kontrak</th></tr></thead>'+
+  '<tbody><tr><td>UCO (Used Cooking Oil)</td><td class="r">'+f(pn(t.vol_kg))+'</td><td class="r">'+fR(pn(t.nilai_kontrak))+'</td></tr></tbody></table>'+
+  '<div class="box"><div class="kv"><b>Prepayment</b> '+fR(pn(t.prepay_amt))+' &nbsp;·&nbsp; <b>Status</b> '+(t.stage||'')+'</div></div>'+
+  _sig([['PREPARED','','Sales'],['APPROVED','Martha Nita F S','General Manager']]);
+}
+
 function buildPages(t){
+  if(t.buyer&&!t.supplier){const pg=[{t:'Sales Order',l:'Sales Order',h:bPO?bSalesDoc(t):''}];return pg.filter(p=>p.h);}
   const dp=pn(t.prepay_amt)>0||pn(t.dp_supplier_amt)>0;const pages=[];
   pages.push({t:'Purchase Order',l:'Purchase Order',h:bPO(t)});
   if(dp)pages.push({t:'Prepayment Memo',l:'Memo',h:bPrepay(t)});
@@ -3057,10 +3179,10 @@ function _gInit(cb){
   _gClient=google.accounts.oauth2.initTokenClient({client_id:cfg.cid,scope:'https://www.googleapis.com/auth/drive.file',callback:(resp)=>{_gTok=resp.access_token;cb();}});
   _gClient.requestAccessToken();
 }
-async function driveUpload(id){
-  const t=S.ibs.find(x=>x.id===id);if(!t)return;
+async function driveUpload(id,silent){
+  const t=S.ibs.find(x=>x.id===id)||S.obs.find(x=>x.id===id);if(!t)return;
   const cfg=driveCfg();
-  if(!cfg.cid){toast('Set Drive Client ID in Admin first','err');return;}
+  if(!cfg.cid){if(!silent)toast('Set Drive Client ID in Admin first','err');return;}
   toast('Building PDF for Drive...');
   const blob=await buildCombinedPDF(t);if(!blob)return;
   _gInit(async ()=>{
@@ -3878,6 +4000,26 @@ async function delBank(id){
   if(error){toast('Gagal / Failed: '+error.message,'err');return;}
   S.banks=S.banks.filter(b=>b.id!==id);renderBanks();toast('Dihapus / Deleted');
 }
+
+
+// ---- ㉗ REALTIME KEEPER: sambung ulang otomatis + refresh saat app dibuka lagi ----
+let _rtLast=Date.now();
+function _rtTouch(){_rtLast=Date.now();}
+async function _rtResume(){
+  try{
+    await loadAll();refAll();updBadges();
+    try{subscribeRealtime();}catch(e){}
+    _rtTouch();
+  }catch(e){}
+}
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='visible'&&S.uid){
+    if(Date.now()-_rtLast>20000)_rtResume();
+  }
+});
+setInterval(function(){
+  if(document.visibilityState==='visible'&&S.uid&&Date.now()-_rtLast>90000){_rtResume();}
+},30000);
 
 // draft autosave listener
 (function(){var mb=document.getElementById('m-body');if(mb){mb.addEventListener('input',draftSave);mb.addEventListener('change',draftSave);}})();

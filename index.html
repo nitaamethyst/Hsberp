@@ -635,7 +635,7 @@ const IB_S=[
   {id:'timbang',n:'Weigh',r:'Gudang',h:1},
   {id:'bongkar',n:'Unload',r:'Gudang',h:2},
   {id:'upload',n:'Upload DO',r:'Gudang',h:1},
-  {id:'memo',n:'Memo Payment',r:'Purchase-Beli',h:2},
+  {id:'memo',n:'Nota (Purchase)',r:'Purchase-Beli',h:2},
   {id:'verif',n:'Verify',r:'Finance',h:1},
   {id:'bayar',n:'Pay',r:'Finance',h:2},
   {id:'done',n:'Done',r:'-',h:0}
@@ -1106,6 +1106,7 @@ function obCard(t){
 // ════════════ CREATE INBOUND ════════════
 function openNewIb(){
   if(!can('Purchase-Beli')){toast('Purchasing division only','err');return;}
+  window._curDraft='new-ib';
   document.getElementById('m-title').textContent='New Purchase';
   document.getElementById('m-sub').textContent='UCO Purchase Plan';
   const sJk=S.hub==='Jakarta'?'selected':'';const sMd=S.hub==='Medan'?'selected':'';
@@ -1114,6 +1115,7 @@ function openNewIb(){
     '<div class="frow"><div class="fg"><label>Date<span class="req">*</span></label><input type="date" id="ni-tgl" value="'+td()+'"/></div><div class="fg"><label>Hub<span class="req">*</span></label><select id="ni-hub"><option value="Jakarta" '+sJk+'>Jakarta</option><option value="Medan" '+sMd+'>Medan</option></select></div></div>'+
     '<div class="frow"><div class="fg" style="flex:2;"><label>Supplier<span class="req">*</span> <span style="font-weight:400;color:var(--text3);font-size:9px;">— ketik untuk cari di master kontak</span></label><input type="text" id="ni-sup" list="dl-crm-sup" placeholder="CV Maju Jaya..." oninput="crmAutofill(\'ni\',\'supplier\')"/>'+crmDatalist('supplier','dl-crm-sup')+'<div id="ni-crmhint" style="font-size:9px;color:var(--text3);margin-top:2px;"></div></div><div class="fg"><label>Phone No.</label><input type="text" id="ni-hp" placeholder="08xx..."/></div></div>'+
     '<div class="frow"><div class="fg"><label>City</label><input type="text" id="ni-city" placeholder="e.g. Bandung"/></div><div class="fg"><label>Province</label><input type="text" id="ni-prov" placeholder="e.g. West Java"/></div></div>'+
+    '<div class="frow"><div class="fg"><label>Kategori<span class="req">*</span></label><select id="ni-kat"><option value="POO">POO</option><option value="Supplier Exclusive">Supplier Exclusive</option><option value="Supplier Seasonal">Supplier Seasonal</option></select></div><div class="fg"><label>Due Date PO</label><input type="date" id="ni-due"/></div><div class="fg"><label>No. Rekening Supplier</label><input type="text" id="ni-rek" placeholder="BCA 1234567890 a.n. ..."/></div></div>'+
     '<div class="frow"><div class="fg"><label>Purchase Plan (kg)<span class="req">*</span></label><input type="number" id="ni-kg" placeholder="0"/></div><div class="fg"><label>Est. Price/kg</label><input type="number" id="ni-h" placeholder="0"/></div><div class="fg"><label>Delivery Method</label><select id="ni-m"><option>Picked up by Driver</option><option>Delivered by Supplier</option></select></div></div>'+
     '<div class="frow"><div class="fg"><label>DP to Supplier (Rp) — optional <span style="font-weight:400;color:var(--yellow);font-size:9px;">— wajib approval GM, maks 50% nilai rencana</span></label><input type="number" id="ni-dp" placeholder="0 = no DP"/></div><div class="fg"><label>DP Note</label><input type="text" id="ni-dpnote" placeholder="e.g. 30% advance"/></div></div>'+
     '<div class="fg"><label>Notes</label><input type="text" id="ni-note" placeholder="Optional..."/></div>';
@@ -1133,10 +1135,10 @@ async function createIb(){
   const perluSampel=kg>SAMPEL_THRESHOLD;
   const dpSup=pn(document.getElementById('ni-dp').value);
   if(dpSup>0){const _plan=kg*pn(document.getElementById('ni-h').value);if(_plan>0&&dpSup>_plan*0.5){toast('DP melebihi 50% nilai rencana ('+fR(_plan*0.5)+') — sesuai kebijakan Bagian 7 manual','err');return;}}
-  const t={id:id,tanggal:tgl,hub:hub,supplier:sup,hp:document.getElementById('ni-hp').value.trim(),city:document.getElementById('ni-city').value.trim(),prov:document.getElementById('ni-prov').value.trim(),rencana_beli:kg,est_harga:pn(document.getElementById('ni-h').value),metode:document.getElementById('ni-m').value,catatan:document.getElementById('ni-note').value.trim(),dp_supplier_amt:dpSup,dp_supplier_note:document.getElementById('ni-dpnote').value.trim(),dp_supplier_paid:false,dp_gm_status:(dpSup>0?'pending':null),dp_gm_by:null,dp_gm_at:null,dp_gm_note:null,perlu_sampel:perluSampel,stage:'terima',stage_start:new Date().toISOString(),log:[{s:'rencana',by:S.nama,at:new Date().toISOString(),n:'Plan created'+(perluSampel?' (required sampel >500kg)':' (qty ≤500kg, sampel dilewati)')}],docs:{},gdoc:{},verified:false,paid:false};
+  const t={id:id,tanggal:tgl,hub:hub,supplier:sup,hp:document.getElementById('ni-hp').value.trim(),city:document.getElementById('ni-city').value.trim(),prov:document.getElementById('ni-prov').value.trim(),rencana_beli:kg,est_harga:pn(document.getElementById('ni-h').value),metode:document.getElementById('ni-m').value,catatan:document.getElementById('ni-note').value.trim(),due_date:(document.getElementById('ni-due').value||null),kategori:document.getElementById('ni-kat').value,supplier_rek:document.getElementById('ni-rek').value.trim(),dp_supplier_amt:dpSup,dp_supplier_note:document.getElementById('ni-dpnote').value.trim(),dp_supplier_paid:false,dp_gm_status:(dpSup>0?'pending':null),dp_gm_by:null,dp_gm_at:null,dp_gm_note:null,perlu_sampel:perluSampel,stage:'terima',stage_start:new Date().toISOString(),log:[{s:'rencana',by:S.nama,at:new Date().toISOString(),n:'Plan created'+(perluSampel?' (required sampel >500kg)':' (qty ≤500kg, sampel dilewati)')}],docs:{},gdoc:{},verified:false,paid:false};
   if(dpSup>0){await audit('DP_SUPPLIER_PROPOSED','inbounds',t.id,{amount:dpSup,supplier:sup},dpSup);}
-  crmSyncFromTxn('supplier',sup,t.hp,t.city,t.prov,hub);
-  await saveIb(t);closeModal();toast('✅ '+id+' created');gotoTab('inbound');
+  crmSyncFromTxn('supplier',sup,t.hp,t.city,t.prov,hub,t.supplier_rek);
+  draftClear('new-ib');await saveIb(t);closeModal();toast('✅ '+id+' created');gotoTab('inbound');
 }
 
 // ════════════ OPEN INBOUND ════════════
@@ -1164,11 +1166,11 @@ async function delObTxn(id){
 
 function openIb(id){
   const t=S.ibs.filter(x=>x.id===id)[0];if(!t)return;
-  window._curIb=id;
+  window._curIb=id;window._curDraft='ib:'+id;
   document.getElementById('m-title').textContent=t.supplier;
   document.getElementById('m-sub').textContent=t.id+'  ·  '+t.hub+'  ·  '+t.tanggal+(t.perlu_sampel?'  ·  🧪 required sampel':'  ·  qty ≤500kg');
   document.getElementById('m-body').innerHTML=ibProg(t)+'<div style="margin:8px 0 4px;"><button class="btn btn-blue btn-sm" style="width:100%;" onclick="docMenu(\''+t.id+'\')">📄 Generate Documents (PO, Lab, Weight Slip, Memo, Note, Proof)</button></div><div id="mi"></div>';
-  renderIbUI(t);showModal();
+  renderIbUI(t);draftRestore();showModal();
 }
 function ibProg(t){
   const cur=ibI(t.stage);
@@ -1201,17 +1203,17 @@ function ibBtn(s){const m={terima:'Confirm Receipt →',sampel:'Done Cek Sampel 
 function ibAct(t,s){
   const ro=!can(s.r);const d=ro?'disabled':'';
   const w=ro?'<div class="alert a-warn">🔒 This stage belongs to <b>'+s.r+'</b>. You: '+S.role+'</div>':'';
-  if(t.stage==='terima')return w+'<div class="frow"><div class="fg"><label>No. DN (Delivery Note)<span class="req">*</span></label><input type="text" id="a-dn" placeholder="DN-XXXX" '+d+' value="'+(t.no_dn||'')+'"/></div><div class="fg"><label>Driver / Courier</label><input type="text" id="a-drv" '+d+' value="'+(t.driver||'')+'"/></div></div><div class="frow"><div class="fg"><label>Vehicle Plate</label><input type="text" id="a-plt" '+d+' value="'+(t.plat||'')+'"/></div></div><div class="alert a-info">ℹ️ Unique DN No. required for traceability. Signed by PM/Ops.</div>';
-  if(t.stage==='sampel')return w+'<div class="alert a-purple">🧪 Lab Sample Check — required because qty '+f(t.rencana_beli)+' kg &gt; 500 kg. Result recorded in supplier history.</div><div class="frow"><div class="fg"><label>Lab Result<span class="req">*</span></label><select id="a-sp" '+d+'><option value="">-- Select --</option><option value="Pass">✅ Pass</option><option value="Held">⛔ Fail — Hold</option><option value="Negotiation">⚠️ Price Negotiation</option></select></div></div><div class="fg"><label>Notes / Lab Result Detail<span class="req">*</span> (FFA, moisture, color, etc)</label><textarea id="a-lab" '+d+' placeholder="e.g.: FFA 4.2%, moisture 0.3%, dark brown color, contaminant-free">'+(t.lab_result||'')+'</textarea></div>';
-  if(t.stage==='timbang')return w+'<div class="frow"><div class="fg"><label>No. Weight Slip (WS)<span class="req">*</span></label><input type="text" id="a-ws" placeholder="WS-XXXX" '+d+' value="'+(t.no_ws||'')+'"/></div></div><div class="frow"><div class="fg"><label>Gross (kg)<span class="req">*</span></label><input type="number" id="a-brt" placeholder="0" '+d+' value="'+(t.bruto||'')+'" oninput="cN()"/></div><div class="fg"><label>Tare (kg)</label><input type="number" id="a-tar" placeholder="0" '+d+' value="'+(t.tara||'')+'" oninput="cN()"/></div><div class="fg"><label>Net <span style="color:var(--green)">auto</span></label><input type="number" id="a-net" readonly style="color:var(--green);font-weight:700;" value="'+(t.netto_kg||'')+'"/></div></div><div class="frow"><div class="fg"><label>Supplier Claimed Wt (kg)</label><input type="number" id="a-wbsup" placeholder="from supplier slip" '+d+' value="'+(t.wb_supplier_kg||'')+'"/></div><div class="fg"><label>WB Reconcile</label><input type="text" id="a-wbinfo" readonly value="auto on save"/></div></div><div class="sect-t mt10" style="border:none;">📷 Unloading Weighbridge Photo (at supplier)</div><div class="upzone '+(t.photo_wb_supplier?'has':'')+'" onclick="document.getElementById(\'f-wbsup\').click()"><p>'+(t.photo_wb_supplier?'Photo uploaded':'Upload weighbridge photo')+'</p></div><input type="file" id="f-wbsup" accept="image/*" style="display:none" onchange="upDoc(event,\'ib\',\''+t.id+'\',\'photo_wb_supplier\')" '+d+'/><div class="alert a-info">ℹ️ WS No. must reference DN No. ('+(t.no_dn||'-')+').</div>';
+  if(t.stage==='terima')return w+'<div class="frow"><div class="fg" style="max-width:130px;"><label>Kendaraan</label><select id="a-veh" '+d+' onchange="chainUpdDN()"><option value="TK" '+(t.veh_code!=='JRG'?'selected':'')+'>TK — Tangki</option><option value="JRG" '+(t.veh_code==='JRG'?'selected':'')+'>JRG — Jerigen</option></select></div><div class="fg"><label>No. DN (auto — lanjut nomor)</label><input type="text" id="a-dn" '+d+' value="'+(t.no_dn||chainSuggestDN(t.hub,t.veh_code||'TK'))+'"/></div><div class="fg"><label>Driver / Courier</label><input type="text" id="a-drv" '+d+' value="'+(t.driver||'')+'"/></div></div><div class="frow"><div class="fg"><label>Vehicle Plate</label><input type="text" id="a-plt" '+d+' value="'+(t.plat||'')+'"/></div></div><div class="alert a-info">ℹ️ Unique DN No. required for traceability. Signed by PM/Ops.</div>';
+  if(t.stage==='sampel')return w+'<div class="alert a-purple">🧪 Lab Sample Check — required because qty '+f(t.rencana_beli)+' kg &gt; 500 kg. Result recorded in supplier history.</div><div class="frow"><div class="fg"><label>Lab Result<span class="req">*</span></label><select id="a-sp" '+d+'><option value="">-- Select --</option><option value="Pass">✅ Pass</option><option value="Held">⛔ Fail — Hold</option><option value="Negotiation">⚠️ Price Negotiation</option></select></div></div><div class="fg"><label>Notes / Lab Result Detail<span class="req">*</span> (FFA, moisture, color, etc)</label><textarea id="a-lab" '+d+' placeholder="e.g.: FFA 4.2%, moisture 0.3%, dark brown color, contaminant-free">'+(t.lab_result||'')+'</textarea></div>'+'<div class="sect-t mt10" style="border:none;">📎 Upload Hasil Lab (foto/scan)</div><div class="upzone '+(t.docs.lab_scan?'has':'')+'" onclick="document.getElementById(\'f-lab\').click()"><p>'+(t.docs.lab_scan?'✅ Hasil lab terupload':'Upload foto/scan hasil lab')+'</p></div><input type="file" id="f-lab" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ib\',\''+t.id+'\',\'lab_scan\')" '+d+'/>';
+  if(t.stage==='timbang')return w+'<div class="frow"><div class="fg"><label>No. Weight Slip (auto — rantai DN)<span class="req">*</span></label><input type="text" id="a-ws" '+d+' value="'+(t.no_ws||chainNo('WS',t))+'"/></div><div class="fg"><label>📎 Slip Timbang (scan)</label><div class="upzone '+(t.docs.weight_slip_scan?'has':'')+'" style="padding:7px;" onclick="document.getElementById(\'f-wslip\').click()"><p style="font-size:10px;">'+(t.docs.weight_slip_scan?'✅ Slip terupload':'Upload slip timbang')+'</p></div><input type="file" id="f-wslip" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ib\',\''+t.id+'\',\'weight_slip_scan\')" '+d+'/></div></div><div class="frow"><div class="fg"><label>Gross (kg)<span class="req">*</span></label><input type="number" id="a-brt" placeholder="0" '+d+' value="'+(t.bruto||'')+'" oninput="cN()"/></div><div class="fg"><label>Tare (kg)</label><input type="number" id="a-tar" placeholder="0" '+d+' value="'+(t.tara||'')+'" oninput="cN()"/></div><div class="fg"><label>Net <span style="color:var(--green)">auto</span></label><input type="number" id="a-net" readonly style="color:var(--green);font-weight:700;" value="'+(t.netto_kg||'')+'"/></div></div><div class="frow"><div class="fg"><label>Supplier Claimed Wt (kg)</label><input type="number" id="a-wbsup" placeholder="from supplier slip" '+d+' value="'+(t.wb_supplier_kg||'')+'"/></div><div class="fg"><label>WB Reconcile</label><input type="text" id="a-wbinfo" readonly value="auto on save"/></div></div><div class="sect-t mt10" style="border:none;">📷 Unloading Weighbridge Photo (at supplier)</div><div class="upzone '+(t.photo_wb_supplier?'has':'')+'" onclick="document.getElementById(\'f-wbsup\').click()"><p>'+(t.photo_wb_supplier?'Photo uploaded':'Upload weighbridge photo')+'</p></div><input type="file" id="f-wbsup" accept="image/*" style="display:none" onchange="upDoc(event,\'ib\',\''+t.id+'\',\'photo_wb_supplier\')" '+d+'/><div class="alert a-info">ℹ️ WS No. must reference DN No. ('+(t.no_dn||'-')+').</div>';
   if(t.stage==='bongkar')return w+'<div class="frow"><div class="fg"><label>Storage Location</label><input type="text" id="a-lok" '+d+' value="'+(t.lokasi_simpan||'')+'" placeholder="Gudang A / Tank 2..."/></div><div class="fg"><label>Notes</label><input type="text" id="a-bn" '+d+' value="'+(t.catatan_bongkar||'')+'"/></div></div>';
   if(t.stage==='upload')return w+'<div class="alert a-info"> DO + Weight Slip are now auto-generated by the system (no manual upload needed). Use Generate Documents above to view/share them.</div><div class="frow mt10"><div class="fg"><label>Documents shared to supplier/WA?<span class="req">*</span></label><select id="a-sh" '+d+'><option value="">-- Select --</option><option value="Yes">Yes  Done</option><option value="Not yet">Not yet</option></select></div></div>';
-  if(t.stage==='memo'){const est=(t.netto_kg||0)*(t.est_harga||0);return w+'<div class="alert a-info">ℹ️ Payment Memo must reference WS No. ('+(t.no_ws||'-')+'), signed by GM. Must attach supplier-signed note/receipt scan.</div>'+'<div style="background:var(--bg2);border:1px dashed var(--yellow);border-radius:8px;padding:10px;margin:10px 0;"><div style="font-size:11px;font-weight:700;color:var(--yellow);margin-bottom:6px;">Langkah TTD Supplier / Supplier Signature</div><div style="font-size:10px;color:var(--text3);margin-bottom:8px;">1. Buat Payment Note. 2. Kirim ke supplier via WA. 3. Supplier TTD lalu foto balik. 4. Upload di bawah. 5. Lanjut Memo. / Generate, send, get signed, upload, then proceed.</div><button class="btn btn-yellow btn-sm" style="width:100%;" onclick="genNotaSend(\''+t.id+'\')">Buat &amp; Kirim Payment Note / Generate &amp; Send</button></div><div class="frow"><div class="fg"><label>No. Memo Payment<span class="req">*</span></label><input type="text" id="a-po" placeholder="MP-XXXX" '+d+' value="'+(t.no_po||'')+'"/></div><div class="fg"><label>Actual Price/kg<span class="req">*</span></label><input type="number" id="a-ha" placeholder="0" '+d+' value="'+(t.harga_aktual||'')+'" oninput="cT('+(t.netto_kg||0)+')"/></div></div><div class="ir"><div class="ir-l">Net</div><div class="ir-v g">'+f(t.netto_kg||0)+' kg</div></div><div class="ir"><div class="ir-l">Total Pay (auto)</div><div class="ir-v g" id="calc-t">'+(t.total_bayar?fR(t.total_bayar):'-')+'</div></div><div class="fg mt10"><label>Payment Method</label><select id="a-mb" '+d+'><option>Bank Transfer</option><option>Cash</option><option>Giro</option></select></div><div class="sect-t mt10" style="border:none;">📎Supplier-Signed Note/Receipt Scan<span class="req">*</span></div><div class="upzone '+(t.docs.nota_kwitansi?'has':'')+'" onclick="document.getElementById(\'f-nota\').click()"><div style="font-size:20px;">'+(t.docs.nota_kwitansi?'📄':'📤')+'</div><p>'+(t.docs.nota_kwitansi?'✅Note/receipt uploaded':'Upload supplier-signed note/receipt scan')+'</p></div><input type="file" id="f-nota" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ib\',\''+t.id+'\',\'nota_kwitansi\')" '+d+'/>';}
+  if(t.stage==='memo'){const _nt=t.no_po||chainNo('NT',t);const _rk=t.supplier_rek||'';const _rows=(t.nota_items&&t.nota_items.length)?t.nota_items:[{d:'UCO',j:'Normal',kg:(t.netto_kg||''),h:(t.harga_aktual||t.est_harga||'')}];setTimeout(function(){const c=document.getElementById('nota-rows');if(c&&!c.children.length){_rows.forEach(function(r){c.insertAdjacentHTML('beforeend',notaRowHtml(r));});notaCalc();}},0);return w+'<div class="alert a-info">🧾 Nota dibuat Purchase — mengacu WS '+(t.no_ws||'-')+'. Bisa tambah baris: barang semi (harga beda), penalty, reject sebagian. / Multi-line nota by Purchase.</div>'+'<div style="background:var(--bg2);border:1px dashed var(--yellow);border-radius:8px;padding:10px;margin:10px 0;"><div style="font-size:11px;font-weight:700;color:var(--yellow);margin-bottom:6px;">Langkah TTD Supplier / Supplier Signature</div><div style="font-size:10px;color:var(--text3);margin-bottom:8px;">1. Susun baris nota di bawah. 2. Kirim paket dokumen ke supplier via WA. 3. Supplier TTD lalu foto balik. 4. Upload scan. 5. Lanjut. / Build nota, send, get signed, upload, proceed.</div><button class="btn btn-yellow btn-sm" style="width:100%;" onclick="genNotaSend(\''+t.id+'\')">📤 Kirim Paket Dokumen + Nota ke WA Supplier</button></div>'+'<div class="frow"><div class="fg"><label>No. Nota (auto — rantai DN)<span class="req">*</span></label><input type="text" id="a-po" '+d+' value="'+_nt+'" placeholder="NT-TK-MMYY-####"/></div><div class="fg"><label>No. Rekening Supplier<span class="req">*</span></label><input type="text" id="a-rek" '+d+' value="'+_rk+'" placeholder="wajib sebelum nota terkirim"/></div></div>'+'<div class="sect-t mt10" style="border:none;">Baris Nota / Nota Lines</div>'+'<div style="display:flex;gap:5px;font-size:9px;color:var(--text3);margin-bottom:3px;"><span style="flex:2;min-width:90px;">Deskripsi</span><span style="flex:1.2;min-width:86px;">Jenis</span><span style="flex:1;min-width:60px;">Kg</span><span style="flex:1;min-width:70px;">Rp/kg</span><span style="width:30px;"></span></div>'+'<div id="nota-rows"></div>'+'<button class="btn btn-ghost btn-sm" style="width:100%;margin:4px 0 8px;" onclick="addNotaRow()">+ Tambah Baris (semi / penalty / reject)</button>'+'<div class="ir"><div class="ir-l">Net Timbang</div><div class="ir-v g">'+f(t.netto_kg||0)+' kg</div></div>'+'<div class="ir"><div class="ir-l">Total Nota (auto)</div><div class="ir-v g" id="nota-total" style="font-size:15px;">'+(t.total_bayar?fR(t.total_bayar):'-')+'</div></div>'+'<div class="ir"><div class="ir-l">Harga Efektif</div><div class="ir-v" id="nota-eff">'+(t.harga_aktual?fRb(t.harga_aktual)+'/kg':'-')+'</div></div>'+'<div class="fg mt10"><label>Payment Method</label><select id="a-mb" '+d+'><option>Bank Transfer</option><option>Cash</option><option>Giro</option></select></div>'+'<div class="sect-t mt10" style="border:none;">📎 Scan Nota TTD Supplier<span class="req">*</span></div><div class="upzone '+(t.docs.nota_kwitansi?'has':'')+'" onclick="document.getElementById(\'f-nota\').click()"><div style="font-size:20px;">'+(t.docs.nota_kwitansi?'📄':'📤')+'</div><p>'+(t.docs.nota_kwitansi?'✅ Nota TTD terupload':'Upload scan nota yang sudah TTD supplier')+'</p></div><input type="file" id="f-nota" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ib\',\''+t.id+'\',\'nota_kwitansi\')" '+d+'/>';}
   if(t.stage==='verif'){const calc=(t.netto_kg||0)*(t.harga_aktual||0);const match=Math.abs(calc-(t.total_bayar||0))<1;return w+'<div class="ir"><div class="ir-l">Purchase Plan</div><div class="ir-v">'+f(t.rencana_beli)+' kg</div></div><div class="ir"><div class="ir-l">Actual Net</div><div class="ir-v g">'+f(t.netto_kg||0)+' kg</div></div><div class="ir"><div class="ir-l">Price/kg</div><div class="ir-v">'+fR(t.harga_aktual||0)+'</div></div><div class="ir"><div class="ir-l">Memo Total</div><div class="ir-v">'+fR(t.total_bayar||0)+'</div></div><div class="ir"><div class="ir-l">Recalculate</div><div class="ir-v '+(match?'g':'r')+'">'+fR(calc)+'</div></div><div class="ir"><div class="ir-l">Note/Receipt</div><div class="ir-v '+(t.docs.nota_kwitansi?'g':'r')+'">'+(t.docs.nota_kwitansi?'✅ Yes':'❌ Not yet')+'</div></div>'+(match?'<div class="alert a-ok">✅ Amount matches.</div>':'<div class="alert a-err">❌ Amount mismatch!</div>')+'<div class="frow mt10"><div class="fg"><label>Decision<span class="req">*</span></label><select id="a-vf" '+d+'><option value="">-- Select --</option><option value="Approve">✅ Approve</option><option value="Hold">⛔ Hold</option></select></div><div class="fg"><label>Reason (if Hold)</label><input type="text" id="a-vn" '+d+'/></div></div>';}
   if(t.stage==='bayar'){const dpS=(t.dp_gm_status==='rejected')?0:pn(t.dp_supplier_amt);const remain=Math.max(0,(t.total_bayar||0)-dpS);return w+(pn(t.dp_supplier_amt)>0&&t.dp_gm_status==='pending'?'<div class="alert a-warn">⏳ DP '+fR(pn(t.dp_supplier_amt))+' menunggu approval GM — pembayaran terkunci. / DP awaiting GM approval — payment locked.</div>':'')+(t.dp_gm_status==='rejected'?'<div class="alert a-warn">🚫 DP DITOLAK GM'+(t.dp_gm_note?' — '+t.dp_gm_note:'')+'. Pelunasan dihitung penuh tanpa potongan DP. / DP rejected by GM; settle the full amount.</div>':'')+'<div class="ir"><div class="ir-l">Supplier</div><div class="ir-v">'+t.supplier+'</div></div><div class="ir"><div class="ir-l">Total Pay</div><div class="ir-v g" style="font-size:15px;">'+fR(t.total_bayar||0)+'</div></div>'+(dpS>0?'<div class="ir"><div class="ir-l">DP Supplier (paid)</div><div class="ir-v" style="color:var(--yellow);">- '+fR(dpS)+'</div></div><div class="ir"><div class="ir-l">Remaining to Pay</div><div class="ir-v g" style="font-size:15px;">'+fR(remain)+'</div></div>':'')+'<div class="frow mt10"><div class="fg"><label>Date Pay<span class="req">*</span></label><input type="date" id="a-tb" value="'+td()+'" '+d+'/></div><div class="fg"><label>Transfer Ref</label><input type="text" id="a-rf" placeholder="Ref-XXXX" '+d+' value="'+(t.ref_bayar||'')+'"/></div></div><div class="frow"><div class="fg"><label>Bayar dari rekening / Pay from account<span class="req">*</span></label><select id="a-payacc" '+d+'>'+bankOptions(t.pay_from_acc)+'</select></div></div><div class="upzone '+(t.docs.bukti_bayar?'has':'')+' mt10" onclick="document.getElementById(\'f-bp\').click()"><p>'+(t.docs.bukti_bayar?'✅Payment proof uploaded':'Upload transfer proof')+'</p></div><input type="file" id="f-bp" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ib\',\''+t.id+'\',\'bukti_bayar\')" '+d+'/>';}
   return '';
 }
-function ibInfo(t){return '<div class="ir"><div class="ir-l">ID</div><div class="ir-v mono">'+t.id+'</div></div><div class="ir"><div class="ir-l">Date</div><div class="ir-v">'+t.tanggal+'</div></div><div class="ir"><div class="ir-l">Supplier</div><div class="ir-v">'+t.supplier+'</div></div><div class="ir"><div class="ir-l">Plan</div><div class="ir-v">'+f(t.rencana_beli)+' kg</div></div><div class="ir"><div class="ir-l">Sample Required</div><div class="ir-v '+(t.perlu_sampel?'y':'')+'">'+(t.perlu_sampel?'Yes (>500kg)':'No (≤500kg)')+'</div></div><div class="ir"><div class="ir-l">Lab Result</div><div class="ir-v">'+(t.hasil_sampel||'-')+'</div></div><div class="ir"><div class="ir-l">No. DN</div><div class="ir-v mono">'+(t.no_dn||'-')+'</div></div><div class="ir"><div class="ir-l">No. WS</div><div class="ir-v mono">'+(t.no_ws||'-')+'</div></div><div class="ir"><div class="ir-l">Net</div><div class="ir-v g">'+(t.netto_kg?f(t.netto_kg)+' kg':'-')+'</div></div><div class="ir"><div class="ir-l">Price/kg</div><div class="ir-v">'+(t.harga_aktual?fRb(t.harga_aktual):'-')+'</div></div><div class="ir"><div class="ir-l">Total</div><div class="ir-v g">'+(t.total_bayar?fRb(t.total_bayar):'-')+'</div></div><div class="ir"><div class="ir-l">No. Memo</div><div class="ir-v mono">'+(t.no_po||'-')+'</div></div>'+(pn(t.dp_supplier_amt)>0?'<div class="ir"><div class="ir-l">DP Supplier</div><div class="ir-v" style="color:var(--yellow);">'+fRb(t.dp_supplier_amt)+(t.dp_supplier_paid?' (paid)':t.dp_gm_status==='pending'?' (⏳ menunggu GM)':t.dp_gm_status==='rejected'?' (🚫 ditolak GM)':t.dp_gm_status==='approved'?' (✅ GM approved)':' (proposed)')+'</div></div>':'')+'<div class="ir"><div class="ir-l">Status</div><div class="ir-v '+(t.paid?'g':'y')+'">'+(t.paid?'SETTLED':'In Progress')+'</div></div>';}
+function ibInfo(t){return '<div class="ir"><div class="ir-l">ID</div><div class="ir-v mono">'+t.id+'</div></div><div class="ir"><div class="ir-l">Date</div><div class="ir-v">'+t.tanggal+'</div></div><div class="ir"><div class="ir-l">Supplier</div><div class="ir-v">'+t.supplier+'</div></div><div class="ir"><div class="ir-l">Plan</div><div class="ir-v">'+f(t.rencana_beli)+' kg</div></div><div class="ir"><div class="ir-l">Kategori</div><div class="ir-v">'+(t.kategori||'-')+'</div></div><div class="ir"><div class="ir-l">Due Date PO</div><div class="ir-v">'+(t.due_date||'-')+'</div></div><div class="ir"><div class="ir-l">Rek. Supplier</div><div class="ir-v mono" style="font-size:10px;">'+(t.supplier_rek||'-')+'</div></div><div class="ir"><div class="ir-l">Sample Required</div><div class="ir-v '+(t.perlu_sampel?'y':'')+'">'+(t.perlu_sampel?'Yes (>500kg)':'No (≤500kg)')+'</div></div><div class="ir"><div class="ir-l">Lab Result</div><div class="ir-v">'+(t.hasil_sampel||'-')+'</div></div><div class="ir"><div class="ir-l">No. DN</div><div class="ir-v mono">'+(t.no_dn||'-')+'</div></div><div class="ir"><div class="ir-l">No. WS</div><div class="ir-v mono">'+(t.no_ws||'-')+'</div></div><div class="ir"><div class="ir-l">Net</div><div class="ir-v g">'+(t.netto_kg?f(t.netto_kg)+' kg':'-')+'</div></div><div class="ir"><div class="ir-l">Price/kg</div><div class="ir-v">'+(t.harga_aktual?fRb(t.harga_aktual):'-')+'</div></div><div class="ir"><div class="ir-l">Total</div><div class="ir-v g">'+(t.total_bayar?fRb(t.total_bayar):'-')+'</div></div><div class="ir"><div class="ir-l">No. Memo</div><div class="ir-v mono">'+(t.no_po||'-')+'</div></div>'+(pn(t.dp_supplier_amt)>0?'<div class="ir"><div class="ir-l">DP Supplier</div><div class="ir-v" style="color:var(--yellow);">'+fRb(t.dp_supplier_amt)+(t.dp_supplier_paid?' (paid)':t.dp_gm_status==='pending'?' (⏳ menunggu GM)':t.dp_gm_status==='rejected'?' (🚫 ditolak GM)':t.dp_gm_status==='approved'?' (✅ GM approved)':' (proposed)')+'</div></div>':'')+'<div class="ir"><div class="ir-l">Status</div><div class="ir-v '+(t.paid?'g':'y')+'">'+(t.paid?'SETTLED':'In Progress')+'</div></div>';}
 function ibDocHtml(t){return IB_DOCS.map(function(dc){const has=dc.ga?(t.gdoc&&t.gdoc.gdrive):t.docs[dc.k];return '<div class="ga-row"><div class="ga-label"><b>'+dc.l+'</b></div><div class="ga-status">'+(dc.ga?'<button class="btn btn-sm '+(has?'btn-green':'btn-yellow')+'" onclick="togGd(\'ib\',\''+t.id+'\')">'+(has?'✅ Uploaded':'Confirm GDrive')+'</button>':(has?'<span class="badge b-green">✅ Yes</span>':'<span class="badge b-gray">Not yet</span>'))+'</div></div>';}).join('');}
 function cN(){const b=pn(document.getElementById('a-brt')?document.getElementById('a-brt').value:0);const ta=pn(document.getElementById('a-tar')?document.getElementById('a-tar').value:0);const el=document.getElementById('a-net');if(el)el.value=Math.max(0,b-ta);}
 function cT(n){const h=pn(document.getElementById('a-ha')?document.getElementById('a-ha').value:0);const el=document.getElementById('calc-t');if(el)el.textContent=fR(n*h);}
@@ -1219,20 +1221,20 @@ function cT(n){const h=pn(document.getElementById('a-ha')?document.getElementByI
 // ════════════ ADVANCE INBOUND (dengan skip samples) ════════════
 async function advIb(id){
   const t=S.ibs.filter(x=>x.id===id)[0];if(!t)return;
-  function mv(nx,note){t.log=t.log||[];t.log.push({s:t.stage,by:S.nama,at:new Date().toISOString(),n:note});t.stage=nx;t.stage_start=new Date().toISOString();}
+  function mv(nx,note){t.log=t.log||[];t.log.push({s:t.stage,by:S.nama,at:new Date().toISOString(),n:note});t.stage=nx;t.stage_start=new Date().toISOString();draftClear();}
   function nextStage(cur){ // hitung tahap berikut dengan skip sampel bila tidak perlu
     let i=ibI(cur)+1;
     while(IB_S[i]&&IB_S[i].id==='sampel'&&!t.perlu_sampel)i++;
     return IB_S[i]?IB_S[i].id:'done';
   }
-  if(t.stage==='terima'){const dn=document.getElementById('a-dn').value.trim();if(!dn){toast('DN No. required','err');return;}t.no_dn=dn;t.driver=document.getElementById('a-drv').value.trim();t.plat=document.getElementById('a-plt').value.trim();mv(nextStage('terima'),'Received — DN: '+dn);}
+  if(t.stage==='terima'){const dn=document.getElementById('a-dn').value.trim();if(!dn){toast('DN No. required','err');return;}t.no_dn=dn;const _vh=document.getElementById('a-veh');if(_vh)t.veh_code=_vh.value;t.driver=document.getElementById('a-drv').value.trim();t.plat=document.getElementById('a-plt').value.trim();mv(nextStage('terima'),'Received — DN: '+dn);}
   else if(t.stage==='sampel'){const h=document.getElementById('a-sp').value;const lab=document.getElementById('a-lab').value.trim();if(!h){toast('Select lab result','err');return;}if(!lab){toast('Lab notes/result required','err');return;}t.hasil_sampel=h;t.lab_result=lab;t.catatan_sampel=lab;if(h==='Held'){t.log.push({s:'sampel',by:S.nama,at:new Date().toISOString(),n:'Held — lab failed: '+lab});t.stage='ditahan';t.held_reason='Lab sample failed';await saveIb(t);closeModal();toast('Held','err');return;}mv('timbang','Lab: '+h+' — '+lab);}
   else if(t.stage==='timbang'){const ws=document.getElementById('a-ws').value.trim();const b=pn(document.getElementById('a-brt').value);if(!ws||!b){toast('WS & Gross required','err');return;}t.no_ws=ws;t.bruto=b;t.tara=pn(document.getElementById('a-tar').value);t.netto_kg=Math.max(0,b-t.tara);const wbs=document.getElementById('a-wbsup');if(wbs){t.wb_supplier_kg=pn(wbs.value);}t.wb_actual_kg=t.netto_kg;const _r=wbReconcile(t);t.wb_diff_kg=_r.diff;t.wb_diff_pct=_r.pct;t.wb_flag=_r.flag;if(_r.flag){await audit('WB_DIFF','inbounds',t.id,{supplier:t.wb_supplier_kg,actual:t.wb_actual_kg,diff:_r.diff,pct:_r.pct.toFixed(2)},null);}mv('bongkar','WS: '+ws+', Net: '+f(t.netto_kg)+' kg'+(_r.flag?' ⚠️WB diff '+f(_r.diff)+'kg':''));}
   else if(t.stage==='bongkar'){t.lokasi_simpan=document.getElementById('a-lok').value.trim();t.catatan_bongkar=document.getElementById('a-bn').value.trim();mv('upload','Unloading done');}
   else if(t.stage==='upload'){const sh=document.getElementById('a-sh').value;if(!sh){toast('Confirm document share','err');return;}t.shared_wa=sh;mv('memo','Docs generated & shared');}
-  else if(t.stage==='memo'){const po=document.getElementById('a-po').value.trim();const h=pn(document.getElementById('a-ha').value);if(!po||!h){toast('Memo No. & price required','err');return;}if(!t.docs.nota_kwitansi){toast('Upload Payment Note yang sudah TTD supplier dulu / Upload supplier-signed Payment Note first','err');return;}if(!priceAllowed(h)){toast('Price '+fR(h)+'/kg exceeds cap '+fR(priceCap())+' — needs GM/Admin approval','err');return;}const _mg=marginCheck(t.hub,h);if(_mg.warn&&_mg.sell>0){if(!confirm('⚠️ Thin/negative margin!\nBuy: '+fR(h)+'/kg\nRef sell: '+fR(_mg.sell)+'/kg\nMargin: '+_mg.pct.toFixed(1)+'% (min '+_mg.minPct+'%)\n\nProceed anyway?'))return;await audit('LOW_MARGIN','inbounds',t.id,{buy:h,sell:_mg.sell,pct:_mg.pct.toFixed(1)},null);}if(priceCap()>0&&h>priceCap()){t.price_override_by=S.nama;t.price_override_at=new Date().toISOString();await audit('PRICE_OVERRIDE','inbounds',t.id,{price:h,cap:priceCap()},h);}t.no_po=po;t.harga_aktual=h;t.total_bayar=(t.netto_kg||0)*h;t.met_bayar=document.getElementById('a-mb').value;mv('verif','Memo Payment: '+po+', Total: '+fR(t.total_bayar));}
+  else if(t.stage==='memo'){const po=document.getElementById('a-po').value.trim();const rek=document.getElementById('a-rek').value.trim();if(!po){toast('No. Nota required','err');return;}if(!rek){toast('No. rekening supplier wajib diisi sebelum nota terkirim / Supplier bank account required','err');return;}const items=notaCollect();if(!items.length){toast('Minimal 1 baris nota','err');return;}if(!t.docs.nota_kwitansi){toast('Upload Nota yang sudah TTD supplier dulu / Upload supplier-signed nota first','err');return;}const total=items.reduce(function(a,r){return a+r.amt;},0);if(total<=0){toast('Total nota tidak valid (≤0)','err');return;}const eff=total/(pn(t.netto_kg)||1);if(!priceAllowed(eff)){toast('Harga efektif '+fR(eff)+'/kg exceeds cap '+fR(priceCap())+' — needs GM/Admin approval','err');return;}const _mg=marginCheck(t.hub,eff);if(_mg.warn&&_mg.sell>0){if(!confirm('⚠️ Thin/negative margin!\nBuy eff: '+fR(eff)+'/kg\nRef sell: '+fR(_mg.sell)+'/kg\nMargin: '+_mg.pct.toFixed(1)+'% (min '+_mg.minPct+'%)\n\nProceed anyway?'))return;await audit('LOW_MARGIN','inbounds',t.id,{buy:eff,sell:_mg.sell,pct:_mg.pct.toFixed(1)},null);}if(priceCap()>0&&eff>priceCap()){t.price_override_by=S.nama;t.price_override_at=new Date().toISOString();await audit('PRICE_OVERRIDE','inbounds',t.id,{price:eff,cap:priceCap()},eff);}t.no_po=po;t.supplier_rek=rek;t.nota_items=items;t.harga_aktual=Math.round(eff);t.total_bayar=total;t.met_bayar=document.getElementById('a-mb').value;try{crmSyncFromTxn('supplier',t.supplier,t.hp,t.city,t.prov,t.hub,rek);}catch(e){}mv('verif','Nota: '+po+' ('+items.length+' baris), Total: '+fR(total));}
   else if(t.stage==='verif'){const v=document.getElementById('a-vf').value;if(!v){toast('Select decision','err');return;}if(v==='Hold'){t.held_reason=document.getElementById('a-vn').value.trim()||'Finance: tidak sesuai';t.log.push({s:'verif',by:S.nama,at:new Date().toISOString(),n:'Held: '+t.held_reason});t.stage='ditahan';await saveIb(t);closeModal();toast('Held Finance','err');return;}t.verified=true;mv('bayar','Terverifikasi');}
-  else if(t.stage==='bayar'){if(!financeProofGate())return;const tb=document.getElementById('a-tb').value;if(!tb){toast('Payment date required','err');return;}const _pacc=document.getElementById('a-payacc');if(_pacc){if(!_pacc.value){toast('Pilih rekening pembayaran / Select payment account','err');return;}t.pay_from_acc=_pacc.value;}if(t.paid){toast('Already paid - double payment blocked','err');return;}if(pn(t.dp_supplier_amt)>0&&t.dp_gm_status==='pending'){toast('DP menunggu approval GM — pembayaran diblokir / DP awaiting GM approval — payment blocked','err');return;}if(pn(t.netto_kg)<=0){toast('Cannot pay: goods not yet weighed/received','err');return;}const wsRef=t.no_ws||'';if(wsRef){const dup=S.ibs.find(x=>x.id!==t.id&&x.paid&&x.no_ws&&x.no_ws===wsRef&&x.hub===t.hub);if(dup){toast('WS '+wsRef+' already paid in '+dup.id+' - blocked','err');return;}}const _dpS=(t.dp_gm_status==='rejected')?0:pn(t.dp_supplier_amt);t.final_paid=Math.max(0,(t.total_bayar||0)-_dpS);if(_dpS>0)t.dp_supplier_paid=true;t.ref_bayar=document.getElementById('a-rf').value.trim();t.paid=true;t.paid_at=new Date().toISOString();t.pay_locked=true;t.pay_ws_ref=wsRef;t.stage='done';t.log.push({s:'done',by:S.nama,at:new Date().toISOString(),n:'SETTLED Ref: '+(t.ref_bayar||'-')+(_dpS>0?' (DP '+fR(_dpS)+' netted, paid '+fR(t.final_paid)+')':'')});await audit('PAY','inbounds',t.id,{ws:wsRef,supplier:t.supplier,dp:_dpS,net:t.final_paid},pn(t.total_bayar));await saveIb(t);closeModal();toast('Payment confirmed (logged)!');return;}
+  else if(t.stage==='bayar'){if(!financeProofGate())return;const tb=document.getElementById('a-tb').value;if(!tb){toast('Payment date required','err');return;}const _pacc=document.getElementById('a-payacc');if(_pacc){if(!_pacc.value){toast('Pilih rekening pembayaran / Select payment account','err');return;}t.pay_from_acc=_pacc.value;}if(t.paid){toast('Already paid - double payment blocked','err');return;}if(!t.docs||!t.docs.bukti_bayar){toast('Upload bukti transfer dulu — tidak bisa konfirmasi tanpa bukti / Transfer proof required before confirming','err');return;}if(pn(t.dp_supplier_amt)>0&&t.dp_gm_status==='pending'){toast('DP menunggu approval GM — pembayaran diblokir / DP awaiting GM approval — payment blocked','err');return;}if(pn(t.netto_kg)<=0){toast('Cannot pay: goods not yet weighed/received','err');return;}const wsRef=t.no_ws||'';if(wsRef){const dup=S.ibs.find(x=>x.id!==t.id&&x.paid&&x.no_ws&&x.no_ws===wsRef&&x.hub===t.hub);if(dup){toast('WS '+wsRef+' already paid in '+dup.id+' - blocked','err');return;}}const _dpS=(t.dp_gm_status==='rejected')?0:pn(t.dp_supplier_amt);t.final_paid=Math.max(0,(t.total_bayar||0)-_dpS);if(_dpS>0)t.dp_supplier_paid=true;t.ref_bayar=document.getElementById('a-rf').value.trim();t.paid=true;t.paid_at=new Date().toISOString();t.pay_locked=true;t.pay_ws_ref=wsRef;t.stage='done';t.log.push({s:'done',by:S.nama,at:new Date().toISOString(),n:'SETTLED Ref: '+(t.ref_bayar||'-')+(_dpS>0?' (DP '+fR(_dpS)+' netted, paid '+fR(t.final_paid)+')':'')});await audit('PAY','inbounds',t.id,{ws:wsRef,supplier:t.supplier,dp:_dpS,net:t.final_paid},pn(t.total_bayar));draftClear();await saveIb(t);closeModal();toast('Payment confirmed (logged)!');return;}
   await saveIb(t);closeModal();toast('Stage advanced');
 }
 
@@ -1274,6 +1276,7 @@ async function releaseIb(id){
 // ════════════ CREATE OUTBOUND ════════════
 function openNewOb(){
   if(!can('Sales-Jual')){toast('Sales division only','err');return;}
+  window._curDraft='new-ob';
   document.getElementById('m-title').textContent='New Sale';
   document.getElementById('m-sub').textContent='PO Buyer → Prepayment → Muat → DO → Invoice+FP → Settled';
   const sJk=S.hub==='Jakarta'?'selected':'';const sMd=S.hub==='Medan'?'selected':'';
@@ -1301,17 +1304,18 @@ async function createOb(){
   const id='OB-'+(hub==='Medan'?'MDN':'JKT')+'-'+pref+'-'+String(seq).padStart(3,'0');
   const t={id:id,tanggal:tgl,hub:hub,buyer:buyer,hp:document.getElementById('no-hp').value.trim(),city:document.getElementById('no-city').value.trim(),prov:document.getElementById('no-prov').value.trim(),no_po_buyer:po,vol_kg:kg,harga_jual:h,nilai_kontrak:kg*h,terms:document.getElementById('no-terms').value,catatan:document.getElementById('no-note').value.trim(),ib_refs:ibR,stage:'po_buyer',stage_start:new Date().toISOString(),log:[{s:'po_buyer',by:S.nama,at:new Date().toISOString(),n:'PO Buyer: '+po}],docs:{},gdoc:{},lunas:false};
   crmSyncFromTxn('buyer',buyer,t.hp,t.city,t.prov,hub);
-  await saveOb(t);closeModal();toast('✅ '+id+' created');gotoTab('outbound');
+  draftClear('new-ob');await saveOb(t);closeModal();toast('✅ '+id+' created');gotoTab('outbound');
 }
 
 // ════════════ OPEN OUTBOUND ════════════
 function openOb(id){
   const t=S.obs.filter(x=>x.id===id)[0];if(!t)return;
+  window._curDraft='ob:'+id;
   window._curOb=id;
   document.getElementById('m-title').textContent=t.buyer;
   document.getElementById('m-sub').textContent=t.id+'  ·  '+t.hub+'  ·  '+t.tanggal;
   document.getElementById('m-body').innerHTML=obProg(t)+'<div id="oi"></div>';
-  renderObUI(t);showModal();
+  renderObUI(t);draftRestore();showModal();
 }
 function obProg(t){
   const cur=obI(t.stage);
@@ -1354,7 +1358,7 @@ function obDocHtml(t){return OB_DOCS.map(function(dc){const has=dc.ga?(t.gdoc&&t
 // ════════════ ADVANCE OUTBOUND ════════════
 async function advOb(id){
   const t=S.obs.filter(x=>x.id===id)[0];if(!t)return;
-  function mv(nx,note){t.log=t.log||[];t.log.push({s:t.stage,by:S.nama,at:new Date().toISOString(),n:note});t.stage=nx;t.stage_start=new Date().toISOString();}
+  function mv(nx,note){t.log=t.log||[];t.log.push({s:t.stage,by:S.nama,at:new Date().toISOString(),n:note});t.stage=nx;t.stage_start=new Date().toISOString();draftClear();}
   if(t.stage==='po_buyer'){mv('prepay','PO dikonfirmasi');}
   else if(t.stage==='prepay'){const a=pn(document.getElementById('ob-pp').value);if(!a){toast('DP amount required','err');return;}const _ppa=document.getElementById('ob-ppacc');if(_ppa){if(!_ppa.value){toast('Pilih rekening DP masuk / Select DP account','err');return;}t.prepay_to_acc=_ppa.value;}t.prepay_amt=a;t.prepay_date=document.getElementById('ob-ppd').value;mv('muat','DP received: '+fR(a));}
   else if(t.stage==='muat'){t.muat_plat=document.getElementById('ob-mp').value.trim();t.muat_driver=document.getElementById('ob-mdr').value.trim();t.lab_ffa=document.getElementById('ob-lab-ffa').value;t.lab_moist=document.getElementById('ob-lab-moist').value;t.lab_miu=document.getElementById('ob-lab-miu').value;t.lab_res=document.getElementById('ob-lab-res').value;t.lab_note=document.getElementById('ob-lab-note').value.trim();if(!t.lab_res){toast('Hasil lab wajib diisi sebelum Surat Jalan / Lab result required before DO','err');return;}mv('do_keluar','Muat selesai');}
@@ -1388,6 +1392,53 @@ async function doReturOb(id){
 }
 
 // ════════════ UPLOAD DOC ════════════
+// ---- DRAFT AUTOSAVE: isian form tidak hilang setelah upload / kamera / reload ----
+function _draftKey(){const id=window._curDraft;return id?('hsbdraft:'+id):null;}
+function draftSave(){try{const k=_draftKey();if(!k)return;const o={};document.querySelectorAll('#m-body input,#m-body select,#m-body textarea').forEach(function(e){if(e.id&&e.type!=='file')o[e.id]=e.value;});localStorage.setItem(k,JSON.stringify(o));}catch(e){}}
+function draftRestore(){try{const k=_draftKey();if(!k)return;const raw=localStorage.getItem(k);if(!raw)return;const o=JSON.parse(raw);Object.keys(o).forEach(function(id){const e=document.getElementById(id);if(e&&o[id]&&!e.value)e.value=o[id];});}catch(e){}}
+function draftClear(id){try{localStorage.removeItem('hsbdraft:'+(id||window._curDraft||''));}catch(e){}}
+
+
+// ---- CHAIN NUMBERING: DN/WS/NT nomor sama, prefix beda — format PREFIX-VEH-MMYY-#### ----
+function chainMMYY(){const x=new Date();return String(x.getMonth()+1).padStart(2,'0')+String(x.getFullYear()).slice(-2);}
+function chainNextSeq(hub){
+  const mm=chainMMYY();let mx=0;
+  S.ibs.forEach(function(t){if(t.hub!==hub)return;const m=String(t.no_dn||'').match(/^DN-(?:TK|JRG)-(\d{4})-(\d{1,5})$/);if(m&&m[1]===mm){const n=parseInt(m[2],10);if(n>mx)mx=n;}});
+  return mx+1;
+}
+function chainSuggestDN(hub,veh){return 'DN-'+(veh||'TK')+'-'+chainMMYY()+'-'+String(chainNextSeq(hub)).padStart(4,'0');}
+function chainNo(prefix,t){const m=String(t.no_dn||'').match(/^DN-((?:TK|JRG)-\d{4}-\d{1,5})$/);return m?(prefix+'-'+m[1]):'';}
+function chainUpdDN(){const v=document.getElementById('a-veh');const d=document.getElementById('a-dn');if(v&&d){const t=S.ibs.find(x=>x.id===window._curIb);d.value=chainSuggestDN(t?t.hub:S.hub,v.value);}}
+
+// ---- NOTA MULTI-BARIS (menggantikan Memo) ----
+const NOTA_JENIS=['Normal','Semi','Penalty (-)','Reject (-)','Lainnya'];
+function notaRowHtml(r){
+  r=r||{d:'',j:'Normal',kg:'',h:''};
+  return '<div class="nota-row" style="display:flex;gap:5px;margin-bottom:5px;align-items:center;">'+
+    '<input type="text" class="nr-d" placeholder="Deskripsi (mis. UCO liquid)" value="'+String(r.d||'').replace(/"/g,'&quot;')+'" style="flex:2;min-width:90px;" oninput="notaCalc()"/>'+
+    '<select class="nr-j" style="flex:1.2;min-width:86px;" onchange="notaCalc()">'+NOTA_JENIS.map(j=>'<option '+(r.j===j?'selected':'')+'>'+j+'</option>').join('')+'</select>'+
+    '<input type="number" class="nr-kg" placeholder="kg" value="'+(r.kg||'')+'" style="flex:1;min-width:60px;" oninput="notaCalc()"/>'+
+    '<input type="number" class="nr-h" placeholder="Rp/kg" value="'+(r.h||'')+'" style="flex:1;min-width:70px;" oninput="notaCalc()"/>'+
+    '<button class="btn btn-red btn-sm" onclick="this.parentElement.remove();notaCalc()" title="hapus baris">✕</button></div>';
+}
+function addNotaRow(r){const c=document.getElementById('nota-rows');if(c){c.insertAdjacentHTML('beforeend',notaRowHtml(r));notaCalc();}}
+function notaCollect(){
+  const rows=[];document.querySelectorAll('#nota-rows .nota-row').forEach(function(el){
+    const d=el.querySelector('.nr-d').value.trim();const j=el.querySelector('.nr-j').value;
+    const kg=pn(el.querySelector('.nr-kg').value);const h=pn(el.querySelector('.nr-h').value);
+    if(!d&&!kg&&!h)return;
+    const neg=(j.indexOf('(-)')>=0)?-1:1;
+    rows.push({d:d||j,j:j,kg:kg,h:h,amt:neg*kg*h});
+  });return rows;
+}
+function notaCalc(){
+  const rows=notaCollect();const total=rows.reduce((a,r)=>a+r.amt,0);
+  const el=document.getElementById('nota-total');if(el)el.textContent=fR(total);
+  const kg=rows.reduce((a,r)=>a+(r.amt>=0?r.kg:0),0);
+  const ef=document.getElementById('nota-eff');if(ef)ef.textContent=kg>0?fR(total/kg)+'/kg efektif':'-';
+  try{draftSave();}catch(e){}
+}
+
 async function upDoc(event,type,txnId,docKey){
   const file=event.target.files[0];if(!file)return;
   if(file.size>5*1024*1024){toast('File too large (max 5MB)','err');return;}
@@ -1822,11 +1873,11 @@ function crmAutofill(prefix,type){
   const c=crmFind(nameEl.value,type);
   if(!c){if(hint)hint.textContent=nameEl.value.trim()?'✨ Kontak baru — akan otomatis tersimpan ke CRM saat transaksi dibuat':'';return;}
   const fill=function(fid,val){const e=document.getElementById(prefix+fid);if(e&&!e.value&&val)e.value=val;};
-  fill('-hp',c.hp);fill('-city',c.city);fill('-prov',c.prov);
+  fill('-hp',c.hp);fill('-city',c.city);fill('-prov',c.prov);fill('-rek',((c.bank_name?c.bank_name+' ':'')+(c.bank_acc||'')).trim());
   if(hint)hint.innerHTML='✅ Terdaftar di CRM — '+crmEsc(c.status||'')+(c.next_fu?' · FU: '+c.next_fu:'');
 }
 // Dipanggil saat createIb/createOb: upsert kontak otomatis (fire-and-forget, tidak memblokir transaksi)
-async function crmSyncFromTxn(type,name,hp,city,prov,hub){
+async function crmSyncFromTxn(type,name,hp,city,prov,hub,rek){
   try{
     if(!name)return;
     const ex=crmFind(name,type);
@@ -1835,6 +1886,7 @@ async function crmSyncFromTxn(type,name,hp,city,prov,hub){
       if(!ex.hp&&hp)upd.hp=hp;
       if(!ex.city&&city)upd.city=city;
       if(!ex.prov&&prov)upd.prov=prov;
+      if(!ex.bank_acc&&rek)upd.bank_acc=rek;
       if(ex.status==='Prospek'||ex.status==='Negosiasi'||ex.status==='Dorman')upd.status='Aktif';
       if(Object.keys(upd).length){
         upd.updated_at=new Date().toISOString();
@@ -1843,7 +1895,7 @@ async function crmSyncFromTxn(type,name,hp,city,prov,hub){
       }
       return;
     }
-    const row={name:String(name).trim(),type:type,hp:hp||'',city:city||'',prov:prov||'',hub:hub||S.hub,status:'Aktif',notes:'',fu_note:'',log:[{by:S.nama,at:new Date().toISOString(),n:'Auto-created dari transaksi '+(type==='supplier'?'purchase':'sale')}],created_by:S.nama};
+    const row={name:String(name).trim(),type:type,hp:hp||'',city:city||'',prov:prov||'',bank_acc:rek||'',hub:hub||S.hub,status:'Aktif',notes:'',fu_note:'',log:[{by:S.nama,at:new Date().toISOString(),n:'Auto-created dari transaksi '+(type==='supplier'?'purchase':'sale')}],created_by:S.nama};
     const {data,error}=await sb.from('crm_contacts').insert(row).select();
     if(!error&&data&&data[0]){S.crm.unshift(data[0]);audit('CRM_AUTO_ADD','crm_contacts',data[0].id,{name:row.name,type:type},null);}
   }catch(e){/* CRM sync must never block transactions */}
@@ -1890,12 +1942,14 @@ function renderCrm(){
   }).join(''):'<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text3);">Belum ada kontak. Kontak terisi otomatis saat tim purchase/sales membuat transaksi, atau tambah manual.</td></tr>';
 }
 function openCrmNew(){
+  window._curDraft='crm-new';
   document.getElementById('m-title').textContent='Kontak Baru';
   document.getElementById('m-sub').textContent='CRM — tambah prospek / mitra manual';
   document.getElementById('m-body').innerHTML=
     '<div class="alert a-info">💡 Kontak dari transaksi terekam otomatis. Form ini untuk prospek yang <b>belum</b> transaksi (masih negosiasi).</div>'+
     '<div class="frow"><div class="fg" style="flex:2;"><label>Nama<span class="req">*</span></label><input type="text" id="nc-name" placeholder="CV / PT / Nama..."/></div><div class="fg"><label>Tipe<span class="req">*</span></label><select id="nc-type"><option value="supplier">Supplier</option><option value="buyer">Buyer</option></select></div></div>'+
     '<div class="frow"><div class="fg"><label>HP / WhatsApp</label><input type="text" id="nc-hp" placeholder="08xx..."/></div><div class="fg"><label>Kota</label><input type="text" id="nc-city"/></div><div class="fg"><label>Provinsi</label><input type="text" id="nc-prov"/></div></div>'+
+    '<div class="frow"><div class="fg"><label>Bank</label><input type="text" id="nc-bank" placeholder="BCA / Mandiri..."/></div><div class="fg" style="flex:1.4;"><label>No. Rekening</label><input type="text" id="nc-rek" placeholder="1234567890"/></div></div>'+
     '<div class="frow"><div class="fg"><label>Hub</label><select id="nc-hub"><option '+(S.hub==='Jakarta'?'selected':'')+'>Jakarta</option><option '+(S.hub==='Medan'?'selected':'')+'>Medan</option></select></div><div class="fg"><label>Status</label><select id="nc-status">'+CRM_STATUS.map(s=>'<option '+(s==='Prospek'?'selected':'')+'>'+s+'</option>').join('')+'</select></div><div class="fg"><label>Follow-up Berikutnya</label><input type="date" id="nc-fu"/></div></div>'+
     '<div class="fg"><label>Catatan</label><input type="text" id="nc-notes" placeholder="Harga yang ditawar, kapasitas, dll..."/></div>';
   document.getElementById('m-foot-l').innerHTML='';
@@ -1907,7 +1961,7 @@ async function createCrmContact(){
   const type=document.getElementById('nc-type').value;
   if(!name){toast('Nama wajib diisi','err');return;}
   if(crmFind(name,type)){toast('Kontak "'+name+'" ('+type+') sudah ada','err');return;}
-  const row={name:name,type:type,hp:document.getElementById('nc-hp').value.trim(),city:document.getElementById('nc-city').value.trim(),prov:document.getElementById('nc-prov').value.trim(),hub:document.getElementById('nc-hub').value,status:document.getElementById('nc-status').value,next_fu:document.getElementById('nc-fu').value||null,notes:document.getElementById('nc-notes').value.trim(),fu_note:'',log:[{by:S.nama,at:new Date().toISOString(),n:'Kontak dibuat manual'}],created_by:S.nama};
+  const row={name:name,type:type,hp:document.getElementById('nc-hp').value.trim(),city:document.getElementById('nc-city').value.trim(),prov:document.getElementById('nc-prov').value.trim(),bank_name:document.getElementById('nc-bank').value.trim(),bank_acc:document.getElementById('nc-rek').value.trim(),hub:document.getElementById('nc-hub').value,status:document.getElementById('nc-status').value,next_fu:document.getElementById('nc-fu').value||null,notes:document.getElementById('nc-notes').value.trim(),fu_note:'',log:[{by:S.nama,at:new Date().toISOString(),n:'Kontak dibuat manual'}],created_by:S.nama};
   const {data,error}=await sb.from('crm_contacts').insert(row).select();
   if(error){toast('Gagal simpan: '+error.message,'err');return;}
   if(data&&data[0])S.crm.unshift(data[0]);
@@ -1916,6 +1970,7 @@ async function createCrmContact(){
 }
 function openCrmProfile(id){
   const c=(S.crm||[]).find(x=>x.id===id);if(!c)return;
+  window._curDraft='crm:'+id;
   const tx=crmTxns(c);
   document.getElementById('m-title').textContent=c.name;
   document.getElementById('m-sub').textContent='CRM · '+(c.type==='supplier'?'Supplier':'Buyer')+' · '+(c.hub||'-');
@@ -1931,6 +1986,7 @@ function openCrmProfile(id){
     '</div>'+
     '<div class="sect-t">📇 Data Kontak '+wa+'</div>'+
     '<div class="frow"><div class="fg"><label>HP / WhatsApp</label><input type="text" id="cp-hp" value="'+crmEsc(c.hp)+'"/></div><div class="fg"><label>Kota</label><input type="text" id="cp-city" value="'+crmEsc(c.city)+'"/></div><div class="fg"><label>Provinsi</label><input type="text" id="cp-prov" value="'+crmEsc(c.prov)+'"/></div></div>'+
+    '<div class="frow"><div class="fg"><label>Bank</label><input type="text" id="cp-bank" value="'+crmEsc(c.bank_name||'')+'" placeholder="BCA / Mandiri..."/></div><div class="fg" style="flex:1.4;"><label>No. Rekening (a.n. sesuai identitas)</label><input type="text" id="cp-rek" value="'+crmEsc(c.bank_acc||'')+'" placeholder="1234567890"/></div><div class="fg"><label>KTP / Identitas</label><div class="upzone '+(c.ktp_data?'has':'')+'" style="padding:7px;" onclick="document.getElementById(\'f-ktp\').click()"><p style="font-size:10px;">'+(c.ktp_data?'✓ '+crmEsc(c.ktp_name||'KTP tersimpan')+' — tap ganti':'Upload KTP (foto/PDF)')+'</p></div><input type="file" id="f-ktp" accept="image/*,.pdf" style="display:none" onchange="crmUpKtp(\''+c.id+'\',event)"/>'+(c.ktp_data&&String(c.ktp_data).indexOf('data:image')===0?'<img src="'+c.ktp_data+'" style="margin-top:5px;width:100%;max-height:70px;object-fit:cover;border-radius:5px;border:1px solid var(--border2);"/>':'')+'</div></div>'+
     '<div class="frow"><div class="fg"><label>Status Pipeline</label><select id="cp-status">'+CRM_STATUS.map(s=>'<option '+(c.status===s?'selected':'')+'>'+s+'</option>').join('')+'</select></div><div class="fg"><label>Follow-up Berikutnya</label><input type="date" id="cp-fu" value="'+(c.next_fu||'')+'"/></div><div class="fg"><label>Catatan FU</label><input type="text" id="cp-funote" value="'+crmEsc(c.fu_note)+'" placeholder="Bahas harga baru..."/></div></div>'+
     '<div class="fg mb10"><label>Catatan Umum</label><input type="text" id="cp-notes" value="'+crmEsc(c.notes)+'"/></div>'+
     '<div class="sect-t">🗒️ Log Interaksi</div>'+
@@ -1942,9 +1998,24 @@ function openCrmProfile(id){
   document.getElementById('m-foot-r').innerHTML='<button class="btn btn-ghost" onclick="closeModal()">Close</button><button class="btn btn-blue" onclick="saveCrmProfile(\''+c.id+'\')">💾 Simpan Perubahan</button>';
   showModal();
 }
+async function crmUpKtp(id,event){
+  const c=(S.crm||[]).find(x=>x.id===id);if(!c)return;
+  const f=event.target.files[0];if(!f)return;
+  if(f.size>5*1024*1024){toast('File terlalu besar (maks 5MB)','err');return;}
+  const r=new FileReader();
+  r.onload=async function(e){
+    const upd={ktp_name:f.name,ktp_data:e.target.result,updated_at:new Date().toISOString()};
+    const {error}=await sb.from('crm_contacts').update(upd).eq('id',id);
+    if(error){toast('Gagal simpan KTP: '+error.message,'err');return;}
+    Object.assign(c,upd);
+    await audit('CRM_KTP_UPLOAD','crm_contacts',id,{name:c.name,file:f.name},null);
+    toast('✅ KTP tersimpan');openCrmProfile(id);
+  };
+  r.readAsDataURL(f);
+}
 async function saveCrmProfile(id){
   const c=(S.crm||[]).find(x=>x.id===id);if(!c)return;
-  const upd={hp:document.getElementById('cp-hp').value.trim(),city:document.getElementById('cp-city').value.trim(),prov:document.getElementById('cp-prov').value.trim(),status:document.getElementById('cp-status').value,next_fu:document.getElementById('cp-fu').value||null,fu_note:document.getElementById('cp-funote').value.trim(),notes:document.getElementById('cp-notes').value.trim(),updated_at:new Date().toISOString()};
+  const upd={hp:document.getElementById('cp-hp').value.trim(),city:document.getElementById('cp-city').value.trim(),prov:document.getElementById('cp-prov').value.trim(),bank_name:document.getElementById('cp-bank').value.trim(),bank_acc:document.getElementById('cp-rek').value.trim(),status:document.getElementById('cp-status').value,next_fu:document.getElementById('cp-fu').value||null,fu_note:document.getElementById('cp-funote').value.trim(),notes:document.getElementById('cp-notes').value.trim(),updated_at:new Date().toISOString()};
   if(upd.status==='Blacklist'&&c.status!=='Blacklist'){if(!confirm('Set "'+c.name+'" ke BLACKLIST?'))return;await audit('CRM_BLACKLIST','crm_contacts',id,{name:c.name},null);}
   const {error}=await sb.from('crm_contacts').update(upd).eq('id',id);
   if(error){toast('Gagal simpan: '+error.message,'err');return;}
@@ -2020,15 +2091,39 @@ function renderAdmin(){
   tb.innerHTML=S.profiles.map(function(p){
     const rOpts=roles.map(r=>'<option value="'+r+'" '+(p.role===r?'selected':'')+'>'+r+'</option>').join('');
     const hOpts=['Jakarta','Medan'].map(h=>'<option value="'+h+'" '+(p.hub===h?'selected':'')+'>'+h+'</option>').join('');
-    return '<tr><td style="font-weight:600;">'+(p.nama||'-')+'</td><td class="mono" style="font-size:10px;">'+(p.email||'-')+'</td><td><span class="badge b-blue">'+p.role+'</span></td><td>'+p.hub+'</td><td><select class="ctrl" onchange="setUserRole(\''+p.id+'\',this.value)">'+rOpts+'</select></td><td><select class="ctrl" onchange="setUserHub(\''+p.id+'\',this.value)">'+hOpts+'</select></td></tr>';
+    return '<tr><td style="font-weight:600;">'+(p.nama||'-')+(p.ttd_data?' <span title="TTD tersimpan">🖊️</span>':'')+'</td><td class="mono" style="font-size:10px;">'+(p.email||'-')+'</td><td><span class="badge b-blue">'+p.role+'</span></td><td>'+p.hub+'</td><td><select class="ctrl" onchange="setUserRole(\''+p.id+'\',this.value)">'+rOpts+'</select></td><td><select class="ctrl" onchange="setUserHub(\''+p.id+'\',this.value)">'+hOpts+'</select></td><td><button class="btn btn-ghost btn-sm" onclick="pickTtd(\''+p.id+'\')">'+(p.ttd_data?'Ganti TTD':'+ TTD')+'</button></td></tr>';
   }).join('');
 }
+
+// ---- TTD DIGITAL per user: upload sekali, otomatis muncul di semua PDF atas nama orang itu ----
+function pickTtd(uid){
+  if(!can('Admin')){toast('Admin only','err');return;}
+  window._ttdUid=uid;
+  let f=document.getElementById('f-ttd');
+  if(!f){f=document.createElement('input');f.type='file';f.accept='image/*';f.id='f-ttd';f.style.display='none';f.onchange=upTtd;document.body.appendChild(f);}
+  f.value='';f.click();
+}
+function upTtd(ev){
+  const file=ev.target.files[0];if(!file)return;
+  if(file.size>2*1024*1024){toast('Maks 2MB — gunakan PNG tanda tangan latar transparan/putih','err');return;}
+  const r=new FileReader();
+  r.onload=async function(e){
+    const uid=window._ttdUid;if(!uid)return;
+    const {error}=await sb.from('profiles').update({ttd_name:file.name,ttd_data:e.target.result}).eq('id',uid);
+    if(error){toast('Gagal simpan TTD: '+error.message,'err');return;}
+    const p=S.profiles.find(x=>x.id===uid);if(p){p.ttd_data=e.target.result;p.ttd_name=file.name;}
+    await audit('TTD_UPLOAD','profiles',uid,{file:file.name},null);
+    toast('🖊️ TTD tersimpan — otomatis muncul di PDF');renderAdmin();
+  };
+  r.readAsDataURL(file);
+}
+
 async function setUserRole(uid,role){const {error}=await sb.from('profiles').update({role:role}).eq('id',uid);if(error){toast('Failed: '+error.message,'err');return;}const p=S.profiles.filter(x=>x.id===uid)[0];if(p)p.role=role;toast('Role changed to '+role);renderAdmin();}
 async function setUserHub(uid,hub){const {error}=await sb.from('profiles').update({hub:hub}).eq('id',uid);if(error){toast('Failed: '+error.message,'err');return;}const p=S.profiles.filter(x=>x.id===uid)[0];if(p)p.hub=hub;toast('Hub changed');}
 
 // ════════════ SHARED ════════════
 function logH(log){if(!log||!log.length)return '<div style="text-align:center;padding:20px;color:var(--text3);">No log yet.</div>';return log.slice().reverse().map(function(l){return '<div class="ir"><div><div style="font-size:11px;font-weight:600;">'+l.s+'</div><div style="font-size:10px;color:var(--text3);">'+(l.n||'')+'</div></div><div style="text-align:right;"><div style="font-size:10px;color:var(--text2);">'+(l.by||'-')+'</div><div style="font-size:9px;color:var(--text3);">'+dts(l.at)+'</div></div></div>';}).join('');}
-function showModal(){document.getElementById('ovl').classList.add('show');}
+function showModal(){try{draftRestore();}catch(e){}document.getElementById('ovl').classList.add('show');}
 function closeModal(){document.getElementById('ovl').classList.remove('show');}
 
 // ════════════ START ════════════
@@ -2237,16 +2332,15 @@ function docPayMemo(t){
 
 // ════════ 6. PAYMENT NOTE (NOTA) ════════
 function docNota(t){
-  const notaNo='NOTA-'+String(t.id).padStart(6,'0');
+  const notaNo=t.no_po||chainNo('NT',t)||('NOTA-'+String(t.id).padStart(6,'0'));
   const net=pn(t.netto_kg), price=pn(t.harga_aktual), sub=net*price, tax=sub*0.11;
   const head='<div><div class="dt">Payment Note</div><div class="meta"><b>Nota No.</b>: '+notaNo+'<br><b>Date</b>: '+dFmt(t.paid_at||t.tanggal)+'</div></div>';
   const body=
    '<div class="box"><h4>Received From / Paid To</h4><div class="kv"><b>Supplier</b>'+blank(t.supplier)+'<br><b>DN / WS</b>'+blank(t.no_dn)+' / '+blank(t.no_ws)+'</div></div>'+
-   '<table><tr><th>Description</th><th class="r">Qty (Kg)</th><th class="r">Unit Price</th><th class="r">Amount</th></tr>'+
-   '<tr><td>UCO (Used Cooking Oil)</td><td class="r">'+f(net)+'</td><td class="r">'+f(price)+'</td><td class="r">'+f(sub)+'</td></tr>'+
-   '<tr class="tot"><td colspan="3" class="lbl">Subtotal</td><td class="r">'+f(sub)+'</td></tr>'+
-   '<tr class="tot"><td colspan="3" class="lbl">Tax (11%)</td><td class="r">'+f(tax)+'</td></tr>'+
-   '<tr class="tot"><td colspan="3" class="lbl">Grand Total</td><td class="r">'+fR(pn(t.total_bayar)||sub+tax)+'</td></tr></table>'+
+   '<table><tr><th>Description</th><th>Jenis</th><th class="r">Qty (Kg)</th><th class="r">Rp/Kg</th><th class="r">Amount</th></tr>'+
+   ((t.nota_items&&t.nota_items.length)?t.nota_items.map(function(r){return '<tr><td>'+r.d+'</td><td>'+r.j+'</td><td class="r">'+f(r.kg)+'</td><td class="r">'+f(r.h)+'</td><td class="r">'+((r.amt<0?'-':'')+f(Math.abs(r.amt)))+'</td></tr>';}).join(''):'<tr><td>UCO (Used Cooking Oil)</td><td>Normal</td><td class="r">'+f(net)+'</td><td class="r">'+f(price)+'</td><td class="r">'+f(sub)+'</td></tr>')+
+   '<tr class="tot"><td colspan="4" class="lbl">Grand Total</td><td class="r">'+fR(pn(t.total_bayar)||sub)+'</td></tr></table>'+
+   (t.supplier_rek?'<div class="kv"><b>Transfer ke Rekening</b> '+t.supplier_rek+'</div>':'')+
    '<div class="kv"><b>Payment Method</b>'+blank(t.met_bayar)+' &nbsp;&nbsp; <b>Reference</b>'+blank(t.ref_bayar)+'</div>'+
    '<div class="sig"><div><div class="ln">'+CO.fin+'</div><div class="ti">'+CO.finTitle+'</div></div>'+
    '<div><div class="ln">&nbsp;</div><div class="ti">Received By / Supplier</div></div></div>';
@@ -2345,7 +2439,8 @@ const DOC_CSS='*{box-sizing:border-box;margin:0;padding:0;}.docpage{font-family:
 function _hd(dtLabel){return '<div class="hd"><div><div class="cn">'+HSB_CO.name+'</div><div class="ca">'+HSB_CO.addr+'</div></div><div><div class="dt">'+dtLabel+'</div></div></div>';}
 function _ft(){return '<div class="ft">'+HSB_CO.name+' — '+HSB_CO.short+'</div>';}
 function _meta(rows){return '<div class="meta">'+rows.map(r=>'<div><b>'+r[0]+'</b> : '+r[1]+'</div>').join('')+'</div>';}
-function _sig(cols){return '<div class="sig">'+cols.map(c=>'<div><div class="mut">'+c[0]+'</div><div class="sigl">'+(c[1]||'&nbsp;')+'</div><div class="mut" style="font-size:9px;">'+(c[2]||'')+'</div></div>').join('')+'</div>';}
+function _ttdImg(name){try{const p=(S.profiles||[]).find(function(x){return x.ttd_data&&(x.nama||'').trim().toLowerCase()===String(name||'').trim().toLowerCase();});return p?'<img src="'+p.ttd_data+'" style="height:34px;display:block;margin:0 auto -4px;"/>':'';}catch(e){return '';}}
+function _sig(cols){return '<div class="sig">'+cols.map(c=>'<div><div class="mut">'+c[0]+'</div>'+_ttdImg(c[1])+'<div class="sigl">'+(c[1]||'&nbsp;')+'</div><div class="mut" style="font-size:9px;">'+(c[2]||'')+'</div></div>').join('')+'</div>';}
 function _page(dtLabel,inner){return '<div class="docpage">'+_hd(dtLabel)+inner+_ft()+'</div>';}
 
 // ---- document body builders (return inner HTML) ----
@@ -2353,7 +2448,7 @@ function bPO(t){
   const qty=pn(_ov(t,'PO','qty',pn(t.netto_kg)||pn(t.rencana_beli)));const price=pn(_ov(t,'PO','price',pn(t.harga_aktual)||pn(t.est_harga)));
   const supplier=_ov(t,'PO','supplier',t.supplier||'-');
   const spec=_ov(t,'PO','spec','FFA max 4% MnI max 1.5%');
-  const terms=_ov(t,'PO','terms',t.terms||'45 Days');
+  const terms=_ov(t,'PO','terms',t.due_date||t.terms||'-');
   const payterm=_ov(t,'PO','payterm',t.met_bayar||'100% After Weight');
   const sub=qty*price,tax=sub*0.11,tot=sub+tax;
   const edited=t.doc_edits&&t.doc_edits.PO;
@@ -2361,7 +2456,7 @@ function bPO(t){
   _meta([['Date',_today()],['PO No.',docNo('PO-SUP',t.id)]])+
   '<div class="two"><div class="box"><div class="lbl">Supplier</div><div><b>'+supplier+'</b></div><div class="mut">'+_loc(t)+'</div><div class="mut">'+(t.hp||'')+'</div></div>'+
   '<div class="box"><div class="lbl">Ship To</div><div><b>Hijau Warehouse</b></div><div class="mut">'+HSB_CO.short+', '+(t.hub||'')+'</div></div></div>'+
-  '<div class="box"><div class="two"><div><div class="lbl">Delivery Date</div>'+terms+'</div><div><div class="lbl">Payment Term</div>'+payterm+'</div><div><div class="lbl">Incoterm</div>Franco</div></div></div>'+
+  '<div class="box"><div class="two"><div><div class="lbl">Delivery / Due Date</div>'+terms+'</div><div><div class="lbl">Payment Term</div>'+payterm+'</div><div><div class="lbl">Incoterm</div>Franco</div></div></div>'+
   '<table><thead><tr><th>Item</th><th>Specification</th><th class="r">Quantity (Kg)</th><th class="r">Unit (IDR)</th><th class="r">Line Total</th></tr></thead><tbody>'+
   '<tr><td>UCO '+(t.hub||'')+'</td><td>'+spec+'</td><td class="r">'+f(qty)+'</td><td class="r">'+f(price)+'</td><td class="r">'+f(sub)+'</td></tr></tbody>'+
   '<tfoot><tr><td colspan="4" class="r">SUBTOTAL</td><td class="r">'+f(sub)+'</td></tr><tr><td colspan="4" class="r">TAX (11%)</td><td class="r">'+f(tax)+'</td></tr><tr><td colspan="4" class="r tot">TOTAL</td><td class="r tot">'+fR(tot)+'</td></tr></tfoot></table>'+
@@ -2413,13 +2508,13 @@ function bPayMemo(t){
 }
 function bPayNote(t){
   const tot=pn(t.total_bayar)||(pn(t.netto_kg)*pn(t.harga_aktual));const dp=pn(t.prepay_amt),bal=tot-dp;
-  return _meta([['Note No.',docNo('NOTE',t.id)],['Date',_d(t.paid_at)||_today()]])+
+  return _meta([['Note No.',t.no_po||chainNo('NT',t)||docNo('NOTE',t.id)],['Date',_d(t.paid_at)||_today()]])+
   '<div class="box"><div class="lbl">Paid To</div><div><b>'+(t.supplier||'-')+'</b></div><div class="mut">'+_loc(t)+'</div></div>'+
   '<table><thead><tr><th>Description</th><th class="r">Qty (Kg)</th><th class="r">Price/Kg</th><th class="r">Amount</th></tr></thead>'+
-  '<tbody><tr><td>UCO (Used Cooking Oil) — DN '+(t.no_dn||'-')+'</td><td class="r">'+f(pn(t.netto_kg))+'</td><td class="r">'+f(pn(t.harga_aktual))+'</td><td class="r">'+f(tot)+'</td></tr></tbody>'+
+  '<tbody>'+((t.nota_items&&t.nota_items.length)?t.nota_items.map(function(r){return '<tr><td>'+r.d+' ('+r.j+')</td><td class="r">'+f(r.kg)+'</td><td class="r">'+f(r.h)+'</td><td class="r">'+((r.amt<0?'-':'')+f(Math.abs(r.amt)))+'</td></tr>';}).join(''):'<tr><td>UCO (Used Cooking Oil) — DN '+(t.no_dn||'-')+'</td><td class="r">'+f(pn(t.netto_kg))+'</td><td class="r">'+f(pn(t.harga_aktual))+'</td><td class="r">'+f(tot)+'</td></tr>')+'</tbody>'+
   '<tfoot><tr><td colspan="3" class="r">TOTAL</td><td class="r">'+f(tot)+'</td></tr>'+
   (dp?'<tr><td colspan="3" class="r">PREPAYMENT (DP)</td><td class="r">-'+f(dp)+'</td></tr><tr><td colspan="3" class="r tot">BALANCE PAID</td><td class="r tot">'+fR(bal)+'</td></tr>':'<tr><td colspan="3" class="r tot">AMOUNT PAID</td><td class="r tot">'+fR(tot)+'</td></tr>')+'</tfoot></table>'+
-  '<div class="box"><div class="lbl">Payment Method</div><div>'+(t.met_bayar||'Bank Transfer')+(t.ref_bayar?' · Ref: '+t.ref_bayar:'')+'</div></div>'+
+  '<div class="box"><div class="lbl">Payment Method</div><div>'+(t.met_bayar||'Bank Transfer')+(t.ref_bayar?' · Ref: '+t.ref_bayar:'')+(t.supplier_rek?'<br>Rek: '+t.supplier_rek:'')+'</div></div>'+
   _sig([['RECEIVED BY',t.supplier||'','Supplier'],['PAID BY','Nora Sesviana','Finance'],['APPROVED','Martha Nita F S','General Manager']]);
 }
 function bProof(t){
@@ -2517,17 +2612,40 @@ async function dlCombined(id){
 // WhatsApp share (opens chat to supplier with message; PDF must be attached manually OR Drive link if uploaded)
 
 async function genNotaSend(id){
+  await waSendPackage(id);
+}
+
+
+// ---- KIRIM PAKET DOKUMEN: PDF gabungan diupload ke storage, link terkirim via WA ----
+async function uploadPdfGetLink(t,blob){
+  try{
+    const path=(t.hub||'x')+'/'+t.id+'-'+Date.now()+'.pdf';
+    const {error}=await sb.storage.from('hsbdocs').upload(path,blob,{upsert:true,contentType:'application/pdf'});
+    if(error)return null;
+    const {data}=sb.storage.from('hsbdocs').getPublicUrl(path);
+    return data&&data.publicUrl?data.publicUrl:null;
+  }catch(e){return null;}
+}
+async function waSendPackage(id){
   const t=S.ibs.find(x=>x.id===id);if(!t)return;
-  // 1) Buat PDF Payment Note (kop HSB) — terunduh utk lampiran
-  try{ docNota(t); }catch(e){}
-  // 2) Buka WhatsApp ke supplier dgn pesan minta TTD
-  let phone=(t.hp||'').replace(/[^0-9]/g,'');
-  if(phone.startsWith('0'))phone='62'+phone.slice(1);
-  const link=t.gdrive_link?('\n\nDokumen: '+t.gdrive_link):'\n\n(PDF Payment Note sudah terunduh — lampirkan via ikon klip WA. / PDF downloaded — attach via WA clip icon.)';
-  const msg='Halo '+(t.supplier||'')+',\n\nTerlampir Payment Note untuk transaksi '+t.id+' dari '+CO.name+'. Mohon ditandatangani lalu kirim kembali fotonya. / Please sign and send back a photo.'+link+'\n\nTerima kasih.';
-  if(phone){setTimeout(function(){window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(msg),'_blank');},900);}
-  else{toast('Nomor HP supplier belum diisi — PDF tetap terunduh / No supplier phone — PDF still downloaded','err');}
-  toast('Payment Note dibuat + WA dibuka / Payment Note generated + WA opened');
+  let phone=(t.hp||'').replace(/[^0-9]/g,'');if(phone.startsWith('0'))phone='62'+phone.slice(1);
+  if(!phone){toast('Nomor HP supplier belum diisi — isi dulu di transaksi/CRM','err');return;}
+  toast('Menyusun paket PDF (PO + Lab + Weight Slip + Nota)...');
+  const blob=await buildCombinedPDF(t);if(!blob)return;
+  let link=await uploadPdfGetLink(t,blob);
+  if(link){t.doc_link=link;try{await saveIb(t);}catch(e){}}
+  const docs='PO'+(t.lab_result?' + Hasil Lab':'')+((pn(t.netto_kg)>0)?' + Weight Slip':'')+(t.no_po?' + Nota '+t.no_po:'');
+  let msg='Halo '+(t.supplier||'')+',\n\nBerikut paket dokumen transaksi '+t.id+' dari '+HSB_CO.name+':\n'+docs+'.';
+  if(link){msg+='\n\n📎 Download dokumen lengkap (PDF):\n'+link;}
+  if(t.supplier_rek){msg+='\n\n💳 Pembayaran ke rekening: '+t.supplier_rek+'\nMohon konfirmasi kebenaran no. rekening & kelengkapan dokumen di atas.';}
+  else{msg+='\n\nMohon konfirmasi no. rekening pembayaran & kelengkapan dokumen.';}
+  msg+='\n\nSetelah dicek, mohon nota ditandatangani dan foto dikirim balik. Terima kasih.';
+  if(!link){
+    const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=_fname(t);a.click();setTimeout(()=>URL.revokeObjectURL(url),4000);
+    msg+='\n\n(PDF terunduh di HP — lampirkan via ikon klip WA.)';
+    toast('Storage belum aktif — PDF terunduh untuk dilampirkan manual','err');
+  }
+  window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(msg),'_blank');
 }
 
 async function waShare(id){
@@ -2651,7 +2769,7 @@ function docMenu(id){
   }).join('');
   body+='<div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;margin:12px 0 6px;">Combined File (all docs)'+(done?'':' — available when Done')+'</div>';
   body+='<button class="btn btn-blue" style="width:100%;margin-bottom:6px;" onclick="dlCombined(\''+id+'\')">📦 Download Combined PDF</button>';
-  body+='<button class="btn" style="width:100%;margin-bottom:6px;background:#25D366;color:#fff;" onclick="waShare(\''+id+'\')">💬 Share via WhatsApp'+(t.hp?' ('+t.hp+')':'')+'</button>';
+  body+='<button class="btn" style="width:100%;margin-bottom:6px;background:#25D366;color:#fff;" onclick="waSendPackage(\''+id+'\')">💬 Kirim Paket Dokumen via WA'+(t.hp?' ('+t.hp+')':'')+'</button>';
   body+='<button class="btn" style="width:100%;margin-bottom:6px;background:#1a73e8;color:#fff;" onclick="driveUpload(\''+id+'\')">☁️ Upload to Google Drive</button>';
   if(t.gdrive_link)body+='<div class="mut" style="font-size:10px;margin-bottom:6px;">Drive: <a href="'+t.gdrive_link+'" target="_blank" style="color:var(--blue);">open link</a></div>';
   body+='<button class="btn btn-ghost" style="width:100%;margin-top:6px;" onclick="closeModal()">Close</button>';
@@ -3376,6 +3494,9 @@ async function delBank(id){
   if(error){toast('Gagal / Failed: '+error.message,'err');return;}
   S.banks=S.banks.filter(b=>b.id!==id);renderBanks();toast('Dihapus / Deleted');
 }
+
+// draft autosave listener
+(function(){var mb=document.getElementById('m-body');if(mb){mb.addEventListener('input',draftSave);mb.addEventListener('change',draftSave);}})();
 </script>
 </body>
 </html>

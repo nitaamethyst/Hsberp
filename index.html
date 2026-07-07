@@ -255,7 +255,7 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
     <div><div style="font-size:17px;font-weight:700;">Daily UCO Operations</div><div style="font-size:11px;color:var(--text2);margin-top:2px;" id="dash-date"></div></div>
     <div class="gap8">
-      <button class="btn btn-green btn-lg" id="btn-new-ib" onclick="openNewIb()">+ New Purchase</button>
+      <button class="btn btn-yellow" onclick="openDpMonitor()">💰 DP Monitor</button> <button class="btn btn-green btn-lg" id="btn-new-ib" onclick="openNewIb()">+ New Purchase</button>
       <button class="btn btn-purple btn-lg" id="btn-new-ob" onclick="openNewOb()">+ New Sale</button>
     </div>
   </div>
@@ -681,7 +681,7 @@ const ROLE_TABS={
 };
 
 // ════════════ STATE ════════════
-let S={hub:'Jakarta',role:'Gudang',uid:null,email:'',nama:'',ibs:[],obs:[],kas:[],expenses:[],profiles:[],settings:{},containers:[],receivings:[],returns:[],opening:[],ampas:[],audit:[],banks:[],crm:[]};
+let S={hub:'Jakarta',role:'Gudang',uid:null,email:'',nama:'',ibs:[],obs:[],kas:[],expenses:[],profiles:[],settings:{},containers:[],receivings:[],returns:[],opening:[],ampas:[],audit:[],banks:[],crm:[],dp:[]};
 let realtimeChans=[];
 
 // ════════════ HELPERS ════════════
@@ -877,7 +877,7 @@ async function loadAll(){
     S.ibs=ib.data||[];S.obs=ob.data||[];S.kas=ks.data||[];S.profiles=pr.data||[];if(ex&&!ex.error)S.expenses=ex.data||[];
     try{const stg=await withTimeout(sb.from('app_settings').select('*'),8000,'settings');if(stg&&!stg.error){S.settings={};(stg.data||[]).forEach(r=>{S.settings[r.key]=r.value;});}}catch(e){}
     try{
-      const [cn,rv,rt,op,am,au,bk,cr]=await Promise.all([
+      const [cn,rv,rt,op,am,au,bk,cr,dpx]=await Promise.all([
         sb.from('containers').select('*').order('code',{ascending:true}),
         sb.from('receivings').select('*').order('tgl',{ascending:false}),
         sb.from('returns').select('*').order('tgl',{ascending:false}),
@@ -885,7 +885,8 @@ async function loadAll(){
         sb.from('ampas').select('*').order('tgl',{ascending:false}),
         sb.from('audit_log').select('*').order('ts',{ascending:false}).limit(200),
         sb.from('bank_accounts').select('*').order('code',{ascending:true}),
-        sb.from('crm_contacts').select('*').order('name',{ascending:true})
+        sb.from('crm_contacts').select('*').order('name',{ascending:true}),
+        sb.from('supplier_dp').select('*').order('created_at',{ascending:false})
       ]);
       if(cn&&!cn.error)S.containers=cn.data||[];
       if(rv&&!rv.error)S.receivings=rv.data||[];
@@ -895,6 +896,7 @@ async function loadAll(){
       if(au&&!au.error)S.audit=au.data||[];
       if(bk&&!bk.error)S.banks=bk.data||[];
       if(cr&&!cr.error)S.crm=cr.data||[];
+      if(dpx&&!dpx.error)S.dp=dpx.data||[];
     }catch(e){}
   }catch(e){
     toast('Data: '+(e.message||e),'err');
@@ -916,6 +918,7 @@ function subscribeRealtime(){
     .on('postgres_changes',{event:'*',schema:'public',table:'opening_stock'},mk('opening'))
     .on('postgres_changes',{event:'*',schema:'public',table:'ampas'},mk('ampas'))
     .on('postgres_changes',{event:'*',schema:'public',table:'crm_contacts'},mk('crm'))
+    .on('postgres_changes',{event:'*',schema:'public',table:'supplier_dp'},mk('dp'))
     .subscribe(status=>{
       const dot=document.getElementById('syncDot');
       if(status==='SUBSCRIBED'){dot.className='sync-dot';dot.title='Synced realtime';}
@@ -1185,7 +1188,7 @@ function ibProg(t){
 }
 function renderIbUI(t){
   const el=document.getElementById('mi');if(!el)return;
-  if(t.stage==='done'){el.innerHTML='<div class="alert a-ok">✅ Done — '+dts(t.paid_at)+'</div>'+ibInfo(t);document.getElementById('m-foot-l').innerHTML='<button class="btn btn-blue btn-sm" onclick="showDocs(\''+t.id+'\')">📄 Docs</button>';document.getElementById('m-foot-r').innerHTML='<button class="btn btn-ghost" onclick="closeModal()">Close</button>';return;}
+  if(t.stage==='done'){el.innerHTML=_editReqBanner(t)+'<div class="alert a-ok">✅ Done — '+dts(t.paid_at)+'</div>'+ibInfo(t);document.getElementById('m-foot-l').innerHTML='<button class="btn btn-blue btn-sm" onclick="showDocs(\''+t.id+'\')">📄 Docs</button>'+((!t.edit_req||t.edit_req.status==='rejected'||t.edit_req.status==='applied')?' <button class="btn btn-ghost btn-sm" onclick="reqEditDone(\''+t.id+'\')">✏️ Minta Edit (GM)</button>':'');document.getElementById('m-foot-r').innerHTML='<button class="btn btn-ghost" onclick="closeModal()">Close</button>';return;}
   if(t.stage==='ditahan'){el.innerHTML='<div class="alert a-warn">⛔ Held: '+(t.held_reason||'-')+'</div>'+ibInfo(t);document.getElementById('m-foot-l').innerHTML='<button class="btn btn-blue btn-sm" onclick="showDocs(\''+t.id+'\')">📄 Docs</button>';document.getElementById('m-foot-r').innerHTML='<button class="btn btn-ghost" onclick="closeModal()">Close</button><button class="btn btn-yellow" onclick="releaseIb(\''+t.id+'\')" '+(!can('Finance')?'disabled':'')+'>🔓 Release Hold</button>';return;}
   const s=IB_S[ibI(t.stage)];
   el.innerHTML='<div class="itabs"><div class="itab active" onclick="itab(this,\'ia-a\')">Action Stage</div><div class="itab" onclick="itab(this,\'ia-i\')">Info</div><div class="itab" onclick="itab(this,\'ia-d\')">Documents</div><div class="itab" onclick="itab(this,\'ia-l\')">Log</div></div><div id="ia-a">'+ibAct(t,s)+'</div><div id="ia-i" style="display:none">'+ibInfo(t)+'</div><div id="ia-d" style="display:none">'+ibDocHtml(t)+'</div><div id="ia-l" style="display:none">'+logH(t.log)+'</div>';
@@ -1205,12 +1208,12 @@ function ibAct(t,s){
   const w=ro?'<div class="alert a-warn">🔒 This stage belongs to <b>'+s.r+'</b>. You: '+S.role+'</div>':'';
   if(t.stage==='terima')return w+'<div class="frow"><div class="fg" style="max-width:130px;"><label>Kendaraan</label><select id="a-veh" '+d+' onchange="chainUpdDN()"><option value="TK" '+(t.veh_code!=='JRG'?'selected':'')+'>TK — Tangki</option><option value="JRG" '+(t.veh_code==='JRG'?'selected':'')+'>JRG — Jerigen</option></select></div><div class="fg"><label>No. DN (auto — lanjut nomor)</label><input type="text" id="a-dn" '+d+' value="'+(t.no_dn||chainSuggestDN(t.hub,t.veh_code||'TK'))+'"/></div><div class="fg"><label>Driver / Courier</label><input type="text" id="a-drv" '+d+' value="'+(t.driver||'')+'"/></div></div><div class="frow"><div class="fg"><label>Vehicle Plate</label><input type="text" id="a-plt" '+d+' value="'+(t.plat||'')+'"/></div></div><div class="alert a-info">ℹ️ Unique DN No. required for traceability. Signed by PM/Ops.</div>';
   if(t.stage==='sampel')return w+'<div class="alert a-purple">🧪 Lab Sample Check — required because qty '+f(t.rencana_beli)+' kg &gt; 500 kg. Result recorded in supplier history.</div><div class="frow"><div class="fg"><label>Lab Result<span class="req">*</span></label><select id="a-sp" '+d+'><option value="">-- Select --</option><option value="Pass">✅ Pass</option><option value="Held">⛔ Fail — Hold</option><option value="Negotiation">⚠️ Price Negotiation</option></select></div></div><div class="fg"><label>Notes / Lab Result Detail<span class="req">*</span> (FFA, moisture, color, etc)</label><textarea id="a-lab" '+d+' placeholder="e.g.: FFA 4.2%, moisture 0.3%, dark brown color, contaminant-free">'+(t.lab_result||'')+'</textarea></div>'+'<div class="sect-t mt10" style="border:none;">📎 Upload Hasil Lab (foto/scan)</div><div class="upzone '+(t.docs.lab_scan?'has':'')+'" onclick="document.getElementById(\'f-lab\').click()"><p>'+(t.docs.lab_scan?'✅ Hasil lab terupload':'Upload foto/scan hasil lab')+'</p></div><input type="file" id="f-lab" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ib\',\''+t.id+'\',\'lab_scan\')" '+d+'/>';
-  if(t.stage==='timbang')return w+'<div class="frow"><div class="fg"><label>No. Weight Slip (auto — rantai DN)<span class="req">*</span></label><input type="text" id="a-ws" '+d+' value="'+(t.no_ws||chainNo('WS',t))+'"/></div><div class="fg"><label>📎 Slip Timbang (scan)</label><div class="upzone '+(t.docs.weight_slip_scan?'has':'')+'" style="padding:7px;" onclick="document.getElementById(\'f-wslip\').click()"><p style="font-size:10px;">'+(t.docs.weight_slip_scan?'✅ Slip terupload':'Upload slip timbang')+'</p></div><input type="file" id="f-wslip" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ib\',\''+t.id+'\',\'weight_slip_scan\')" '+d+'/></div></div><div class="frow"><div class="fg"><label>Gross (kg)<span class="req">*</span></label><input type="number" id="a-brt" placeholder="0" '+d+' value="'+(t.bruto||'')+'" oninput="cN()"/></div><div class="fg"><label>Tare (kg)</label><input type="number" id="a-tar" placeholder="0" '+d+' value="'+(t.tara||'')+'" oninput="cN()"/></div><div class="fg"><label>Net <span style="color:var(--green)">auto</span></label><input type="number" id="a-net" readonly style="color:var(--green);font-weight:700;" value="'+(t.netto_kg||'')+'"/></div></div><div class="frow"><div class="fg"><label>Supplier Claimed Wt (kg)</label><input type="number" id="a-wbsup" placeholder="from supplier slip" '+d+' value="'+(t.wb_supplier_kg||'')+'"/></div><div class="fg"><label>WB Reconcile</label><input type="text" id="a-wbinfo" readonly value="auto on save"/></div></div><div class="sect-t mt10" style="border:none;">📷 Unloading Weighbridge Photo (at supplier)</div><div class="upzone '+(t.photo_wb_supplier?'has':'')+'" onclick="document.getElementById(\'f-wbsup\').click()"><p>'+(t.photo_wb_supplier?'Photo uploaded':'Upload weighbridge photo')+'</p></div><input type="file" id="f-wbsup" accept="image/*" style="display:none" onchange="upDoc(event,\'ib\',\''+t.id+'\',\'photo_wb_supplier\')" '+d+'/><div class="alert a-info">ℹ️ WS No. must reference DN No. ('+(t.no_dn||'-')+').</div>';
+  if(t.stage==='timbang'){const _wsr=(t.ws_items&&t.ws_items.length)?t.ws_items:[{kat:'Bagus',kg:(t.netto_kg||'')}];setTimeout(function(){const c=document.getElementById('ws-rows');if(c&&!c.children.length){_wsr.forEach(function(r){c.insertAdjacentHTML('beforeend',wsRowHtml(r));});wsCalc();}},0);return w+'<div class="frow"><div class="fg"><label>No. Weight Slip (auto — rantai DN)<span class="req">*</span></label><input type="text" id="a-ws" '+d+' value="'+(t.no_ws||chainNo('WS',t))+'"/></div><div class="fg"><label>📎 Slip Timbang (scan)</label><div class="upzone '+(t.docs.weight_slip_scan?'has':'')+'" style="padding:7px;" onclick="document.getElementById(\'f-wslip\').click()"><p style="font-size:10px;">'+(t.docs.weight_slip_scan?'✅ Slip terupload':'Upload slip timbang')+'</p></div><input type="file" id="f-wslip" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ib\',\''+t.id+'\',\'weight_slip_scan\')" '+d+'/></div></div><div class="frow"><div class="fg"><label>Gross (kg)<span class="req">*</span></label><input type="number" id="a-brt" placeholder="0" '+d+' value="'+(t.bruto||'')+'" oninput="cN()"/></div><div class="fg"><label>Tare (kg)</label><input type="number" id="a-tar" placeholder="0" '+d+' value="'+(t.tara||'')+'" oninput="cN()"/></div><div class="fg"><label>Net <span style="color:var(--green)">auto</span></label><input type="number" id="a-net" readonly style="color:var(--green);font-weight:700;" value="'+(t.netto_kg||'')+'"/></div></div><div class="frow"><div class="fg"><label>Supplier Claimed Wt (kg)</label><input type="number" id="a-wbsup" placeholder="from supplier slip" '+d+' value="'+(t.wb_supplier_kg||'')+'"/></div><div class="fg"><label>WB Reconcile</label><input type="text" id="a-wbinfo" readonly value="auto on save"/></div></div>'+'<div class="frow"><div class="fg"><label>Moisture %</label><input type="number" step="0.01" id="a-mois" '+d+' value="'+(t.mois_pct||'')+'" oninput="wsCalc()"/></div><div class="fg"><label>Impurities %</label><input type="number" step="0.01" id="a-imp" '+d+' value="'+(t.imp_pct||'')+'" oninput="wsCalc()"/></div><div class="fg"><label>Potongan M&amp;I (auto)</label><div class="ir-v" id="ws-mi" style="padding-top:8px;">'+(t.mi_kg?((pn(t.mois_pct)+pn(t.imp_pct)).toFixed(2)+'% = '+f(t.mi_kg)+' kg'):'-')+'</div></div></div>'+'<div class="ir"><div class="ir-l">Netto Akhir setelah M&amp;I (auto)</div><div class="ir-v g" id="ws-netfinal" style="font-size:14px;">'+(t.netto_kg?f(t.netto_kg)+' kg':'-')+'</div></div>'+'<div class="sect-t mt10" style="border:none;">Pembagian Kategori Barang / Goods Split</div>'+'<div id="ws-rows"></div><div id="ws-check" style="font-size:10px;color:var(--text3);margin:2px 0 4px;"></div>'+'<button class="btn btn-ghost btn-sm" style="width:100%;margin:2px 0 8px;" onclick="addWsRow()">+ Tambah Kategori (semi / reject / ampas)</button>'+'<div class="sect-t mt10" style="border:none;">📷 Unloading Weighbridge Photo (at supplier)</div><div class="upzone '+(t.photo_wb_supplier?'has':'')+'" onclick="document.getElementById(\'f-wbsup\').click()"><p>'+(t.photo_wb_supplier?'Photo uploaded':'Upload weighbridge photo')+'</p></div><input type="file" id="f-wbsup" accept="image/*" style="display:none" onchange="upDoc(event,\'ib\',\''+t.id+'\',\'photo_wb_supplier\')" '+d+'/><div class="alert a-info">ℹ️ WS No. must reference DN No. ('+(t.no_dn||'-')+').</div>';}
   if(t.stage==='bongkar')return w+'<div class="frow"><div class="fg"><label>Storage Location</label><input type="text" id="a-lok" '+d+' value="'+(t.lokasi_simpan||'')+'" placeholder="Gudang A / Tank 2..."/></div><div class="fg"><label>Notes</label><input type="text" id="a-bn" '+d+' value="'+(t.catatan_bongkar||'')+'"/></div></div>';
   if(t.stage==='upload')return w+'<div class="alert a-info"> DO + Weight Slip are now auto-generated by the system (no manual upload needed). Use Generate Documents above to view/share them.</div><div class="frow mt10"><div class="fg"><label>Documents shared to supplier/WA?<span class="req">*</span></label><select id="a-sh" '+d+'><option value="">-- Select --</option><option value="Yes">Yes  Done</option><option value="Not yet">Not yet</option></select></div></div>';
   if(t.stage==='memo'){const _nt=t.no_po||chainNo('NT',t);const _rk=t.supplier_rek||'';const _rows=(t.nota_items&&t.nota_items.length)?t.nota_items:[{d:'UCO',j:'Normal',kg:(t.netto_kg||''),h:(t.harga_aktual||t.est_harga||'')}];setTimeout(function(){const c=document.getElementById('nota-rows');if(c&&!c.children.length){_rows.forEach(function(r){c.insertAdjacentHTML('beforeend',notaRowHtml(r));});notaCalc();}},0);return w+'<div class="alert a-info">🧾 Nota dibuat Purchase — mengacu WS '+(t.no_ws||'-')+'. Bisa tambah baris: barang semi (harga beda), penalty, reject sebagian. / Multi-line nota by Purchase.</div>'+'<div style="background:var(--bg2);border:1px dashed var(--yellow);border-radius:8px;padding:10px;margin:10px 0;"><div style="font-size:11px;font-weight:700;color:var(--yellow);margin-bottom:6px;">Langkah TTD Supplier / Supplier Signature</div><div style="font-size:10px;color:var(--text3);margin-bottom:8px;">1. Susun baris nota di bawah. 2. Kirim paket dokumen ke supplier via WA. 3. Supplier TTD lalu foto balik. 4. Upload scan. 5. Lanjut. / Build nota, send, get signed, upload, proceed.</div><button class="btn btn-yellow btn-sm" style="width:100%;" onclick="genNotaSend(\''+t.id+'\')">📤 Kirim Paket Dokumen + Nota ke WA Supplier</button></div>'+'<div class="frow"><div class="fg"><label>No. Nota (auto — rantai DN)<span class="req">*</span></label><input type="text" id="a-po" '+d+' value="'+_nt+'" placeholder="NT-TK-MMYY-####"/></div><div class="fg"><label>No. Rekening Supplier<span class="req">*</span></label><input type="text" id="a-rek" '+d+' value="'+_rk+'" placeholder="wajib sebelum nota terkirim"/></div></div>'+'<div class="sect-t mt10" style="border:none;">Baris Nota / Nota Lines</div>'+'<div style="display:flex;gap:5px;font-size:9px;color:var(--text3);margin-bottom:3px;"><span style="flex:2;min-width:90px;">Deskripsi</span><span style="flex:1.2;min-width:86px;">Jenis</span><span style="flex:1;min-width:60px;">Kg</span><span style="flex:1;min-width:70px;">Rp/kg</span><span style="width:30px;"></span></div>'+'<div id="nota-rows"></div>'+'<button class="btn btn-ghost btn-sm" style="width:100%;margin:4px 0 8px;" onclick="addNotaRow()">+ Tambah Baris (semi / penalty / reject)</button>'+'<div class="ir"><div class="ir-l">Net Timbang</div><div class="ir-v g">'+f(t.netto_kg||0)+' kg</div></div>'+'<div class="ir"><div class="ir-l">Total Nota (auto)</div><div class="ir-v g" id="nota-total" style="font-size:15px;">'+(t.total_bayar?fR(t.total_bayar):'-')+'</div></div>'+'<div class="ir"><div class="ir-l">Harga Efektif</div><div class="ir-v" id="nota-eff">'+(t.harga_aktual?fRb(t.harga_aktual)+'/kg':'-')+'</div></div>'+'<div class="fg mt10"><label>Payment Method</label><select id="a-mb" '+d+'><option>Bank Transfer</option><option>Cash</option><option>Giro</option></select></div>'+'<div class="sect-t mt10" style="border:none;">📎 Scan Nota TTD Supplier<span class="req">*</span></div><div class="upzone '+(t.docs.nota_kwitansi?'has':'')+'" onclick="document.getElementById(\'f-nota\').click()"><div style="font-size:20px;">'+(t.docs.nota_kwitansi?'📄':'📤')+'</div><p>'+(t.docs.nota_kwitansi?'✅ Nota TTD terupload':'Upload scan nota yang sudah TTD supplier')+'</p></div><input type="file" id="f-nota" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ib\',\''+t.id+'\',\'nota_kwitansi\')" '+d+'/>';}
   if(t.stage==='verif'){const calc=(t.netto_kg||0)*(t.harga_aktual||0);const match=Math.abs(calc-(t.total_bayar||0))<1;return w+'<div class="ir"><div class="ir-l">Purchase Plan</div><div class="ir-v">'+f(t.rencana_beli)+' kg</div></div><div class="ir"><div class="ir-l">Actual Net</div><div class="ir-v g">'+f(t.netto_kg||0)+' kg</div></div><div class="ir"><div class="ir-l">Price/kg</div><div class="ir-v">'+fR(t.harga_aktual||0)+'</div></div><div class="ir"><div class="ir-l">Memo Total</div><div class="ir-v">'+fR(t.total_bayar||0)+'</div></div><div class="ir"><div class="ir-l">Recalculate</div><div class="ir-v '+(match?'g':'r')+'">'+fR(calc)+'</div></div><div class="ir"><div class="ir-l">Note/Receipt</div><div class="ir-v '+(t.docs.nota_kwitansi?'g':'r')+'">'+(t.docs.nota_kwitansi?'✅ Yes':'❌ Not yet')+'</div></div>'+(match?'<div class="alert a-ok">✅ Amount matches.</div>':'<div class="alert a-err">❌ Amount mismatch!</div>')+'<div class="frow mt10"><div class="fg"><label>Decision<span class="req">*</span></label><select id="a-vf" '+d+'><option value="">-- Select --</option><option value="Approve">✅ Approve</option><option value="Hold">⛔ Hold</option></select></div><div class="fg"><label>Reason (if Hold)</label><input type="text" id="a-vn" '+d+'/></div></div>';}
-  if(t.stage==='bayar'){const dpS=(t.dp_gm_status==='rejected')?0:pn(t.dp_supplier_amt);const remain=Math.max(0,(t.total_bayar||0)-dpS);return w+(pn(t.dp_supplier_amt)>0&&t.dp_gm_status==='pending'?'<div class="alert a-warn">⏳ DP '+fR(pn(t.dp_supplier_amt))+' menunggu approval GM — pembayaran terkunci. / DP awaiting GM approval — payment locked.</div>':'')+(t.dp_gm_status==='rejected'?'<div class="alert a-warn">🚫 DP DITOLAK GM'+(t.dp_gm_note?' — '+t.dp_gm_note:'')+'. Pelunasan dihitung penuh tanpa potongan DP. / DP rejected by GM; settle the full amount.</div>':'')+'<div class="ir"><div class="ir-l">Supplier</div><div class="ir-v">'+t.supplier+'</div></div><div class="ir"><div class="ir-l">Total Pay</div><div class="ir-v g" style="font-size:15px;">'+fR(t.total_bayar||0)+'</div></div>'+(dpS>0?'<div class="ir"><div class="ir-l">DP Supplier (paid)</div><div class="ir-v" style="color:var(--yellow);">- '+fR(dpS)+'</div></div><div class="ir"><div class="ir-l">Remaining to Pay</div><div class="ir-v g" style="font-size:15px;">'+fR(remain)+'</div></div>':'')+'<div class="frow mt10"><div class="fg"><label>Date Pay<span class="req">*</span></label><input type="date" id="a-tb" value="'+td()+'" '+d+'/></div><div class="fg"><label>Transfer Ref</label><input type="text" id="a-rf" placeholder="Ref-XXXX" '+d+' value="'+(t.ref_bayar||'')+'"/></div></div><div class="frow"><div class="fg"><label>Bayar dari rekening / Pay from account<span class="req">*</span></label><select id="a-payacc" '+d+'>'+bankOptions(t.pay_from_acc)+'</select></div></div><div class="upzone '+(t.docs.bukti_bayar?'has':'')+' mt10" onclick="document.getElementById(\'f-bp\').click()"><p>'+(t.docs.bukti_bayar?'✅Payment proof uploaded':'Upload transfer proof')+'</p></div><input type="file" id="f-bp" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ib\',\''+t.id+'\',\'bukti_bayar\')" '+d+'/>';}
+  if(t.stage==='bayar'){const dpS=(t.dp_gm_status==='rejected')?0:pn(t.dp_supplier_amt);const remain=Math.max(0,(t.total_bayar||0)-dpS);return w+((typeof dpAktifSupplier==='function'&&dpAktifSupplier(t.supplier).length)?'<div class="alert a-info">💰 Supplier ini punya saldo DP aktif: '+dpAktifSupplier(t.supplier).map(function(d){return d.jenis+' '+fR(dpSisa(d))+(d.auto_potong?' (auto)':' (manual)');}).join(', ')+'. Yang bertanda auto akan terpotong otomatis saat konfirmasi.</div>':'')+(pn(t.dp_supplier_amt)>0&&t.dp_gm_status==='pending'?'<div class="alert a-warn">⏳ DP '+fR(pn(t.dp_supplier_amt))+' menunggu approval GM — pembayaran terkunci. / DP awaiting GM approval — payment locked.</div>':'')+(t.dp_gm_status==='rejected'?'<div class="alert a-warn">🚫 DP DITOLAK GM'+(t.dp_gm_note?' — '+t.dp_gm_note:'')+'. Pelunasan dihitung penuh tanpa potongan DP. / DP rejected by GM; settle the full amount.</div>':'')+'<div class="ir"><div class="ir-l">Supplier</div><div class="ir-v">'+t.supplier+'</div></div><div class="ir"><div class="ir-l">Total Pay</div><div class="ir-v g" style="font-size:15px;">'+fR(t.total_bayar||0)+'</div></div>'+(dpS>0?'<div class="ir"><div class="ir-l">DP Supplier (paid)</div><div class="ir-v" style="color:var(--yellow);">- '+fR(dpS)+'</div></div><div class="ir"><div class="ir-l">Remaining to Pay</div><div class="ir-v g" style="font-size:15px;">'+fR(remain)+'</div></div>':'')+'<div class="frow mt10"><div class="fg"><label>Date Pay<span class="req">*</span></label><input type="date" id="a-tb" value="'+td()+'" '+d+'/></div><div class="fg"><label>Transfer Ref</label><input type="text" id="a-rf" placeholder="Ref-XXXX" '+d+' value="'+(t.ref_bayar||'')+'"/></div></div><div class="frow"><div class="fg"><label>Bayar dari rekening / Pay from account<span class="req">*</span></label><select id="a-payacc" '+d+'>'+bankOptions(t.pay_from_acc)+'</select></div></div><div class="upzone '+(t.docs.bukti_bayar?'has':'')+' mt10" onclick="document.getElementById(\'f-bp\').click()"><p>'+(t.docs.bukti_bayar?'✅Payment proof uploaded':'Upload transfer proof')+'</p></div><input type="file" id="f-bp" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ib\',\''+t.id+'\',\'bukti_bayar\')" '+d+'/>';}
   return '';
 }
 function ibInfo(t){return '<div class="ir"><div class="ir-l">ID</div><div class="ir-v mono">'+t.id+'</div></div><div class="ir"><div class="ir-l">Date</div><div class="ir-v">'+t.tanggal+'</div></div><div class="ir"><div class="ir-l">Supplier</div><div class="ir-v">'+t.supplier+'</div></div><div class="ir"><div class="ir-l">Plan</div><div class="ir-v">'+f(t.rencana_beli)+' kg</div></div><div class="ir"><div class="ir-l">Kategori</div><div class="ir-v">'+(t.kategori||'-')+'</div></div><div class="ir"><div class="ir-l">Due Date PO</div><div class="ir-v">'+(t.due_date||'-')+'</div></div><div class="ir"><div class="ir-l">Rek. Supplier</div><div class="ir-v mono" style="font-size:10px;">'+(t.supplier_rek||'-')+'</div></div><div class="ir"><div class="ir-l">Sample Required</div><div class="ir-v '+(t.perlu_sampel?'y':'')+'">'+(t.perlu_sampel?'Yes (>500kg)':'No (≤500kg)')+'</div></div><div class="ir"><div class="ir-l">Lab Result</div><div class="ir-v">'+(t.hasil_sampel||'-')+'</div></div><div class="ir"><div class="ir-l">No. DN</div><div class="ir-v mono">'+(t.no_dn||'-')+'</div></div><div class="ir"><div class="ir-l">No. WS</div><div class="ir-v mono">'+(t.no_ws||'-')+'</div></div><div class="ir"><div class="ir-l">Net</div><div class="ir-v g">'+(t.netto_kg?f(t.netto_kg)+' kg':'-')+'</div></div><div class="ir"><div class="ir-l">Price/kg</div><div class="ir-v">'+(t.harga_aktual?fRb(t.harga_aktual):'-')+'</div></div><div class="ir"><div class="ir-l">Total</div><div class="ir-v g">'+(t.total_bayar?fRb(t.total_bayar):'-')+'</div></div><div class="ir"><div class="ir-l">No. Memo</div><div class="ir-v mono">'+(t.no_po||'-')+'</div></div>'+(pn(t.dp_supplier_amt)>0?'<div class="ir"><div class="ir-l">DP Supplier</div><div class="ir-v" style="color:var(--yellow);">'+fRb(t.dp_supplier_amt)+(t.dp_supplier_paid?' (paid)':t.dp_gm_status==='pending'?' (⏳ menunggu GM)':t.dp_gm_status==='rejected'?' (🚫 ditolak GM)':t.dp_gm_status==='approved'?' (✅ GM approved)':' (proposed)')+'</div></div>':'')+'<div class="ir"><div class="ir-l">Status</div><div class="ir-v '+(t.paid?'g':'y')+'">'+(t.paid?'SETTLED':'In Progress')+'</div></div>';}
@@ -1229,12 +1232,12 @@ async function advIb(id){
   }
   if(t.stage==='terima'){const dn=document.getElementById('a-dn').value.trim();if(!dn){toast('DN No. required','err');return;}t.no_dn=dn;const _vh=document.getElementById('a-veh');if(_vh)t.veh_code=_vh.value;t.driver=document.getElementById('a-drv').value.trim();t.plat=document.getElementById('a-plt').value.trim();mv(nextStage('terima'),'Received — DN: '+dn);}
   else if(t.stage==='sampel'){const h=document.getElementById('a-sp').value;const lab=document.getElementById('a-lab').value.trim();if(!h){toast('Select lab result','err');return;}if(!lab){toast('Lab notes/result required','err');return;}t.hasil_sampel=h;t.lab_result=lab;t.catatan_sampel=lab;if(h==='Held'){t.log.push({s:'sampel',by:S.nama,at:new Date().toISOString(),n:'Held — lab failed: '+lab});t.stage='ditahan';t.held_reason='Lab sample failed';await saveIb(t);closeModal();toast('Held','err');return;}mv('timbang','Lab: '+h+' — '+lab);}
-  else if(t.stage==='timbang'){const ws=document.getElementById('a-ws').value.trim();const b=pn(document.getElementById('a-brt').value);if(!ws||!b){toast('WS & Gross required','err');return;}t.no_ws=ws;t.bruto=b;t.tara=pn(document.getElementById('a-tar').value);t.netto_kg=Math.max(0,b-t.tara);const wbs=document.getElementById('a-wbsup');if(wbs){t.wb_supplier_kg=pn(wbs.value);}t.wb_actual_kg=t.netto_kg;const _r=wbReconcile(t);t.wb_diff_kg=_r.diff;t.wb_diff_pct=_r.pct;t.wb_flag=_r.flag;if(_r.flag){await audit('WB_DIFF','inbounds',t.id,{supplier:t.wb_supplier_kg,actual:t.wb_actual_kg,diff:_r.diff,pct:_r.pct.toFixed(2)},null);}mv('bongkar','WS: '+ws+', Net: '+f(t.netto_kg)+' kg'+(_r.flag?' ⚠️WB diff '+f(_r.diff)+'kg':''));}
+  else if(t.stage==='timbang'){const ws=document.getElementById('a-ws').value.trim();const b=pn(document.getElementById('a-brt').value);if(!ws||!b){toast('WS & Gross required','err');return;}t.no_ws=ws;t.bruto=b;t.tara=pn(document.getElementById('a-tar').value);t.net_timbang=Math.max(0,b-t.tara);t.mois_pct=pn(document.getElementById('a-mois').value);t.imp_pct=pn(document.getElementById('a-imp').value);t.mi_kg=Math.round(t.net_timbang*(t.mois_pct+t.imp_pct)/100);t.netto_kg=Math.max(0,t.net_timbang-t.mi_kg);t.ws_items=wsCollect();const _sum=t.ws_items.reduce(function(a,r){return a+r.kg;},0);if(t.ws_items.length&&Math.abs(_sum-t.netto_kg)>1){if(!confirm('Pembagian kategori ('+f(_sum)+' kg) tidak sama dengan netto akhir ('+f(t.netto_kg)+' kg).\nLanjut simpan?'))return;}const wbs=document.getElementById('a-wbsup');if(wbs){t.wb_supplier_kg=pn(wbs.value);}t.wb_actual_kg=t.netto_kg;const _r=wbReconcile(t);t.wb_diff_kg=_r.diff;t.wb_diff_pct=_r.pct;t.wb_flag=_r.flag;if(_r.flag){await audit('WB_DIFF','inbounds',t.id,{supplier:t.wb_supplier_kg,actual:t.wb_actual_kg,diff:_r.diff,pct:_r.pct.toFixed(2)},null);}mv('bongkar','WS: '+ws+', NetTimbang: '+f(t.net_timbang)+' kg, M&I '+(t.mois_pct+t.imp_pct).toFixed(2)+'% (-'+f(t.mi_kg)+' kg), Netto: '+f(t.netto_kg)+' kg'+(_r.flag?' ⚠️WB diff '+f(_r.diff)+'kg':''));}
   else if(t.stage==='bongkar'){t.lokasi_simpan=document.getElementById('a-lok').value.trim();t.catatan_bongkar=document.getElementById('a-bn').value.trim();mv('upload','Unloading done');}
   else if(t.stage==='upload'){const sh=document.getElementById('a-sh').value;if(!sh){toast('Confirm document share','err');return;}t.shared_wa=sh;mv('memo','Docs generated & shared');}
   else if(t.stage==='memo'){const po=document.getElementById('a-po').value.trim();const rek=document.getElementById('a-rek').value.trim();if(!po){toast('No. Nota required','err');return;}if(!rek){toast('No. rekening supplier wajib diisi sebelum nota terkirim / Supplier bank account required','err');return;}const items=notaCollect();if(!items.length){toast('Minimal 1 baris nota','err');return;}if(!t.docs.nota_kwitansi){toast('Upload Nota yang sudah TTD supplier dulu / Upload supplier-signed nota first','err');return;}const total=items.reduce(function(a,r){return a+r.amt;},0);if(total<=0){toast('Total nota tidak valid (≤0)','err');return;}const eff=total/(pn(t.netto_kg)||1);if(!priceAllowed(eff)){toast('Harga efektif '+fR(eff)+'/kg exceeds cap '+fR(priceCap())+' — needs GM/Admin approval','err');return;}const _mg=marginCheck(t.hub,eff);if(_mg.warn&&_mg.sell>0){if(!confirm('⚠️ Thin/negative margin!\nBuy eff: '+fR(eff)+'/kg\nRef sell: '+fR(_mg.sell)+'/kg\nMargin: '+_mg.pct.toFixed(1)+'% (min '+_mg.minPct+'%)\n\nProceed anyway?'))return;await audit('LOW_MARGIN','inbounds',t.id,{buy:eff,sell:_mg.sell,pct:_mg.pct.toFixed(1)},null);}if(priceCap()>0&&eff>priceCap()){t.price_override_by=S.nama;t.price_override_at=new Date().toISOString();await audit('PRICE_OVERRIDE','inbounds',t.id,{price:eff,cap:priceCap()},eff);}t.no_po=po;t.supplier_rek=rek;t.nota_items=items;t.harga_aktual=Math.round(eff);t.total_bayar=total;t.met_bayar=document.getElementById('a-mb').value;try{crmSyncFromTxn('supplier',t.supplier,t.hp,t.city,t.prov,t.hub,rek);}catch(e){}mv('verif','Nota: '+po+' ('+items.length+' baris), Total: '+fR(total));}
   else if(t.stage==='verif'){const v=document.getElementById('a-vf').value;if(!v){toast('Select decision','err');return;}if(v==='Hold'){t.held_reason=document.getElementById('a-vn').value.trim()||'Finance: tidak sesuai';t.log.push({s:'verif',by:S.nama,at:new Date().toISOString(),n:'Held: '+t.held_reason});t.stage='ditahan';await saveIb(t);closeModal();toast('Held Finance','err');return;}t.verified=true;mv('bayar','Terverifikasi');}
-  else if(t.stage==='bayar'){if(!financeProofGate())return;const tb=document.getElementById('a-tb').value;if(!tb){toast('Payment date required','err');return;}const _pacc=document.getElementById('a-payacc');if(_pacc){if(!_pacc.value){toast('Pilih rekening pembayaran / Select payment account','err');return;}t.pay_from_acc=_pacc.value;}if(t.paid){toast('Already paid - double payment blocked','err');return;}if(!t.docs||!t.docs.bukti_bayar){toast('Upload bukti transfer dulu — tidak bisa konfirmasi tanpa bukti / Transfer proof required before confirming','err');return;}if(pn(t.dp_supplier_amt)>0&&t.dp_gm_status==='pending'){toast('DP menunggu approval GM — pembayaran diblokir / DP awaiting GM approval — payment blocked','err');return;}if(pn(t.netto_kg)<=0){toast('Cannot pay: goods not yet weighed/received','err');return;}const wsRef=t.no_ws||'';if(wsRef){const dup=S.ibs.find(x=>x.id!==t.id&&x.paid&&x.no_ws&&x.no_ws===wsRef&&x.hub===t.hub);if(dup){toast('WS '+wsRef+' already paid in '+dup.id+' - blocked','err');return;}}const _dpS=(t.dp_gm_status==='rejected')?0:pn(t.dp_supplier_amt);t.final_paid=Math.max(0,(t.total_bayar||0)-_dpS);if(_dpS>0)t.dp_supplier_paid=true;t.ref_bayar=document.getElementById('a-rf').value.trim();t.paid=true;t.paid_at=new Date().toISOString();t.pay_locked=true;t.pay_ws_ref=wsRef;t.stage='done';t.log.push({s:'done',by:S.nama,at:new Date().toISOString(),n:'SETTLED Ref: '+(t.ref_bayar||'-')+(_dpS>0?' (DP '+fR(_dpS)+' netted, paid '+fR(t.final_paid)+')':'')});await audit('PAY','inbounds',t.id,{ws:wsRef,supplier:t.supplier,dp:_dpS,net:t.final_paid},pn(t.total_bayar));draftClear();await saveIb(t);closeModal();toast('Payment confirmed (logged)!');return;}
+  else if(t.stage==='bayar'){if(!financeProofGate())return;const tb=document.getElementById('a-tb').value;if(!tb){toast('Payment date required','err');return;}const _pacc=document.getElementById('a-payacc');if(_pacc){if(!_pacc.value){toast('Pilih rekening pembayaran / Select payment account','err');return;}t.pay_from_acc=_pacc.value;}if(t.paid){toast('Already paid - double payment blocked','err');return;}if(!t.docs||!t.docs.bukti_bayar){toast('Upload bukti transfer dulu — tidak bisa konfirmasi tanpa bukti / Transfer proof required before confirming','err');return;}if(pn(t.dp_supplier_amt)>0&&t.dp_gm_status==='pending'){toast('DP menunggu approval GM — pembayaran diblokir / DP awaiting GM approval — payment blocked','err');return;}if(pn(t.netto_kg)<=0){toast('Cannot pay: goods not yet weighed/received','err');return;}const wsRef=t.no_ws||'';if(wsRef){const dup=S.ibs.find(x=>x.id!==t.id&&x.paid&&x.no_ws&&x.no_ws===wsRef&&x.hub===t.hub);if(dup){toast('WS '+wsRef+' already paid in '+dup.id+' - blocked','err');return;}}const _dpS=(t.dp_gm_status==='rejected')?0:pn(t.dp_supplier_amt);let _base=Math.max(0,(t.total_bayar||0)-_dpS);const _sCut=await dpApplyOnPay(t,_base);t.final_paid=Math.max(0,_base-_sCut);if(_dpS>0)t.dp_supplier_paid=true;t.ref_bayar=document.getElementById('a-rf').value.trim();t.paid=true;t.paid_at=new Date().toISOString();t.pay_locked=true;t.pay_ws_ref=wsRef;t.stage='done';t.log.push({s:'done',by:S.nama,at:new Date().toISOString(),n:'SETTLED Ref: '+(t.ref_bayar||'-')+(_dpS>0?' (DP txn '+fR(_dpS)+' netted)':'')+(t.dp_saldo_cut?' (Saldo DP terpotong '+fR(t.dp_saldo_cut)+')':'')+' — dibayar '+fR(t.final_paid)});await audit('PAY','inbounds',t.id,{ws:wsRef,supplier:t.supplier,dp:_dpS,net:t.final_paid},pn(t.total_bayar));draftClear();await saveIb(t);closeModal();toast('Payment confirmed (logged)!');return;}
   await saveIb(t);closeModal();toast('Stage advanced');
 }
 
@@ -1398,6 +1401,208 @@ function draftSave(){try{const k=_draftKey();if(!k)return;const o={};document.qu
 function draftRestore(){try{const k=_draftKey();if(!k)return;const raw=localStorage.getItem(k);if(!raw)return;const o=JSON.parse(raw);Object.keys(o).forEach(function(id){const e=document.getElementById(id);if(e&&o[id]&&!e.value)e.value=o[id];});}catch(e){}}
 function draftClear(id){try{localStorage.removeItem('hsbdraft:'+(id||window._curDraft||''));}catch(e){}}
 
+
+
+
+
+// ---- EDIT TRANSAKSI SELESAI (salah input lab/timbangan) — via approval GM ----
+
+function _editReqBanner(t){
+  if(!t.edit_req)return (t.stage==='done'&&!can('Admin'))?'':'';
+  const r=t.edit_req;
+  if(r.status==='pending')return '<div class="alert a-warn">✏️ Permintaan edit oleh '+r.by+': "'+r.reason+'"'+(can('Admin')?' <button class="btn btn-green btn-sm" onclick="gmEditDecide(\''+t.id+'\',true)">✅ Setujui</button> <button class="btn btn-red btn-sm" onclick="gmEditDecide(\''+t.id+'\',false)">🚫</button>':' — menunggu GM')+'</div>';
+  if(r.status==='approved'&&t.edit_unlock)return '<div class="alert a-warn">🔓 Edit disetujui GM — <button class="btn btn-yellow btn-sm" onclick="openEditDone(\''+t.id+'\')">Buka Form Koreksi</button></div>';
+  if(r.status==='rejected')return '<div class="alert a-warn">🚫 Permintaan edit ditolak GM'+(r.gm_note?': '+r.gm_note:'')+'</div>';
+  if(r.status==='applied')return '<div class="alert a-info">✏️ Transaksi pernah dikoreksi ('+dts(r.applied_at)+' oleh '+r.applied_by+') — riwayat di audit log.</div>';
+  return '';
+}
+
+function reqEditDone(id){
+  const t=S.ibs.find(x=>x.id===id);if(!t)return;
+  const what=prompt('Apa yang salah dan perlu diubah? (mis: netto seharusnya 4.980 kg, bukan 4.890)\nPermintaan dikirim ke GM untuk approval:');
+  if(what===null)return;
+  if(!what.trim()){toast('Isi keterangan dulu','err');return;}
+  t.edit_req={by:S.nama,at:new Date().toISOString(),reason:what.trim(),status:'pending'};
+  audit('EDIT_REQUEST','inbounds',t.id,{by:S.nama,reason:what.trim()},null);
+  saveIb(t).then(function(){toast('📨 Permintaan edit terkirim ke GM');openIb(id);});
+}
+async function gmEditDecide(id,ok){
+  if(!can('Admin')){toast('GM/Admin only','err');return;}
+  const t=S.ibs.find(x=>x.id===id);if(!t||!t.edit_req)return;
+  if(ok){
+    if(!confirm('Setujui edit transaksi '+t.id+'?\nAlasan: '+t.edit_req.reason+'\n\nSetelah disetujui, kolom timbangan & lab terbuka SEKALI untuk dikoreksi.'))return;
+    t.edit_req.status='approved';t.edit_req.gm_by=S.nama;t.edit_req.gm_at=new Date().toISOString();t.edit_unlock=true;
+    await audit('EDIT_APPROVED','inbounds',t.id,{reason:t.edit_req.reason},null);
+  }else{
+    const rsn=prompt('Alasan menolak:');if(rsn===null)return;
+    t.edit_req.status='rejected';t.edit_req.gm_by=S.nama;t.edit_req.gm_note=rsn||'';
+    await audit('EDIT_REJECTED','inbounds',t.id,{reason:rsn},null);
+  }
+  await saveIb(t);toast(ok?'✅ Edit disetujui — kolom terbuka':'Edit ditolak');openIb(id);
+}
+function openEditDone(id){
+  const t=S.ibs.find(x=>x.id===id);if(!t||!t.edit_unlock)return;
+  document.getElementById('m-title').textContent='🔓 Koreksi Data — '+t.id;
+  document.getElementById('m-sub').textContent='Disetujui GM · semua perubahan tercatat di audit';
+  document.getElementById('m-body').innerHTML=
+    '<div class="alert a-warn">⚠️ Koreksi satu kali. Nilai lama → baru akan tercatat permanen di audit log.</div>'+
+    '<div class="frow"><div class="fg"><label>Gross (kg)</label><input type="number" id="ed-brt" value="'+(t.bruto||'')+'"/></div><div class="fg"><label>Tare (kg)</label><input type="number" id="ed-tar" value="'+(t.tara||'')+'"/></div></div>'+
+    '<div class="frow"><div class="fg"><label>Moisture %</label><input type="number" step="0.01" id="ed-mois" value="'+(t.mois_pct||'')+'"/></div><div class="fg"><label>Impurities %</label><input type="number" step="0.01" id="ed-imp" value="'+(t.imp_pct||'')+'"/></div></div>'+
+    '<div class="fg"><label>Hasil Lab (teks)</label><textarea id="ed-lab">'+(t.lab_result||'')+'</textarea></div>'+
+    '<div class="alert a-info" id="ed-preview">Netto akhir akan dihitung ulang otomatis saat disimpan.</div>';
+  document.getElementById('m-foot-l').innerHTML='';
+  document.getElementById('m-foot-r').innerHTML='<button class="btn btn-ghost" onclick="openIb(\''+id+'\')">Batal</button><button class="btn btn-yellow" onclick="applyEditDone(\''+id+'\')">💾 Simpan Koreksi</button>';
+  showModal();
+}
+async function applyEditDone(id){
+  const t=S.ibs.find(x=>x.id===id);if(!t||!t.edit_unlock)return;
+  const old={bruto:t.bruto,tara:t.tara,mois:t.mois_pct,imp:t.imp_pct,netto:t.netto_kg,total:t.total_bayar,lab:t.lab_result};
+  t.bruto=pn(document.getElementById('ed-brt').value);
+  t.tara=pn(document.getElementById('ed-tar').value);
+  t.mois_pct=pn(document.getElementById('ed-mois').value);
+  t.imp_pct=pn(document.getElementById('ed-imp').value);
+  t.lab_result=document.getElementById('ed-lab').value.trim();
+  t.net_timbang=Math.max(0,t.bruto-t.tara);
+  t.mi_kg=Math.round(t.net_timbang*(t.mois_pct+t.imp_pct)/100);
+  t.netto_kg=Math.max(0,t.net_timbang-t.mi_kg);
+  if(pn(t.harga_aktual)>0)t.total_bayar=Math.round(t.netto_kg*pn(t.harga_aktual));
+  t.edit_unlock=false;
+  t.edit_req.status='applied';t.edit_req.applied_by=S.nama;t.edit_req.applied_at=new Date().toISOString();
+  t.log=t.log||[];t.log.push({s:t.stage,by:S.nama,at:new Date().toISOString(),n:'KOREKSI (GM-approved): netto '+f(old.netto)+'→'+f(t.netto_kg)+' kg, total '+fR(old.total||0)+'→'+fR(t.total_bayar||0)});
+  await audit('EDIT_APPLIED','inbounds',t.id,{old:old,neu:{bruto:t.bruto,tara:t.tara,mois:t.mois_pct,imp:t.imp_pct,netto:t.netto_kg,total:t.total_bayar}},t.total_bayar);
+  if(t.paid&&Math.abs((t.total_bayar||0)-(old.total||0))>0){toast('⚠️ Total berubah setelah pembayaran — selisih '+fR(Math.abs(t.total_bayar-old.total))+' perlu penyesuaian Finance','err');}
+  await saveIb(t);closeModal();toast('✅ Koreksi tersimpan & tercatat');openIb(id);
+}
+
+// ---- MONITORING SALDO DP PER SUPPLIER (jenis bebas diketik Purchase) ----
+function dpSisa(d){return Math.max(0,pn(d.amount)-pn(d.used));}
+function dpAktifSupplier(name){
+  const n=crmNorm(name);
+  return (S.dp||[]).filter(d=>d.status==='approved'&&crmNorm(d.supplier)===n&&dpSisa(d)>0);
+}
+function openDpMonitor(){
+  const list=S.dp||[];
+  const pend=list.filter(d=>d.status==='pending');
+  const jenisList=[...new Set(list.map(d=>d.jenis).filter(Boolean))];
+  const totAktif=list.filter(d=>d.status==='approved').reduce((a,d)=>a+dpSisa(d),0);
+  document.getElementById('m-title').textContent='💰 Monitoring DP Supplier';
+  document.getElementById('m-sub').textContent='Saldo uang muka per supplier per jenis — potong otomatis saat pembayaran';
+  let h='<div class="g2 mb10">'+
+    '<div class="card c-yellow"><div class="card-t">Total DP Beredar (sisa)</div><div class="card-v mono" style="font-size:14px;">'+fR(totAktif)+'</div></div>'+
+    '<div class="card '+(pend.length?'c-red':'')+'"><div class="card-t">Menunggu Approval GM</div><div class="card-v">'+pend.length+'</div></div></div>';
+  if(can('Purchase-Beli')){
+    h+='<div class="card mb10"><div class="card-t">➕ Top-up DP Baru</div>'+
+      '<div class="frow mt10"><div class="fg" style="flex:1.5;"><label>Supplier<span class="req">*</span></label><input type="text" id="dp-sup" list="dl-crm-sup2" placeholder="ketik nama..."/>'+crmDatalist('supplier','dl-crm-sup2')+'</div>'+
+      '<div class="fg"><label>Jenis DP<span class="req">*</span> <span style="font-weight:400;color:var(--text3);font-size:9px;">bebas ketik</span></label><input type="text" id="dp-jenis" list="dl-dp-jenis" placeholder="mis. DP Kontrak"/><datalist id="dl-dp-jenis">'+jenisList.map(j=>'<option>'+crmEsc(j)+'</option>').join('')+'</datalist></div></div>'+
+      '<div class="frow"><div class="fg"><label>Nominal (Rp)<span class="req">*</span></label><input type="number" id="dp-amt" placeholder="0"/></div>'+
+      '<div class="fg"><label>Potong otomatis?</label><select id="dp-auto"><option value="1">Ya — turun tiap pembayaran barang</option><option value="0">Tidak — dicatat saja (potong manual/akhir kontrak)</option></select></div></div>'+
+      '<div class="fg"><label>Catatan</label><input type="text" id="dp-note" placeholder="No. kontrak, kesepakatan..."/></div>'+
+      '<button class="btn btn-yellow mt10" style="width:100%;" onclick="createDp()">Ajukan DP (menunggu approval GM) →</button></div>';
+  }
+  const bySup={};
+  list.forEach(d=>{const k=d.supplier;if(!bySup[k])bySup[k]=[];bySup[k].push(d);});
+  h+='<div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Supplier</th><th>Jenis</th><th class="r">Nominal</th><th class="r">Terpakai</th><th class="r">Sisa</th><th>Auto</th><th>Status</th><th>Aksi</th></tr></thead><tbody>';
+  Object.keys(bySup).sort().forEach(sup=>{
+    bySup[sup].forEach(d=>{
+      const st=d.status==='approved'?'<span class="badge b-green">✅</span>':d.status==='rejected'?'<span class="badge b-red">🚫</span>':'<span class="badge b-yellow">⏳ GM</span>';
+      const act=(d.status==='pending'&&can('Admin'))?'<button class="btn btn-green btn-sm" onclick="dpApprove(\''+d.id+'\')">✅</button> <button class="btn btn-red btn-sm" onclick="dpReject(\''+d.id+'\')">🚫</button>':'<button class="btn btn-ghost btn-sm" onclick="dpLog(\''+d.id+'\')">Log</button>';
+      h+='<tr><td style="font-weight:600;">'+crmEsc(d.supplier)+'</td><td>'+crmEsc(d.jenis||'-')+'</td><td class="r mono">'+fR(pn(d.amount))+'</td><td class="r mono">'+fR(pn(d.used))+'</td><td class="r mono" style="color:var(--yellow);font-weight:700;">'+fR(dpSisa(d))+'</td><td>'+(d.auto_potong?'🔄':'📌')+'</td><td>'+st+'</td><td>'+act+'</td></tr>';
+    });
+  });
+  h+='</tbody></table></div><div style="font-size:9px;color:var(--text3);margin-top:6px;">🔄 = potong otomatis tiap pembayaran · 📌 = tercatat saja</div>';
+  document.getElementById('m-body').innerHTML=h||'';
+  document.getElementById('m-foot-l').innerHTML='';
+  document.getElementById('m-foot-r').innerHTML='<button class="btn btn-ghost" onclick="closeModal()">Close</button>';
+  showModal();
+}
+async function createDp(){
+  const sup=document.getElementById('dp-sup').value.trim();
+  const jenis=document.getElementById('dp-jenis').value.trim();
+  const amt=pn(document.getElementById('dp-amt').value);
+  if(!sup||!jenis||!amt){toast('Supplier, jenis, dan nominal wajib diisi','err');return;}
+  const row={supplier:sup,jenis:jenis,amount:amt,used:0,auto_potong:document.getElementById('dp-auto').value==='1',note:document.getElementById('dp-note').value.trim(),hub:S.hub,status:'pending',created_by:S.nama,log:[{by:S.nama,at:new Date().toISOString(),n:'Top-up diajukan: '+fR(amt)}]};
+  const {data,error}=await sb.from('supplier_dp').insert(row).select();
+  if(error){toast('Gagal: '+error.message,'err');return;}
+  if(data&&data[0])S.dp.unshift(data[0]);
+  await audit('DP_SALDO_PROPOSED','supplier_dp',data&&data[0]?data[0].id:'',{supplier:sup,jenis:jenis},amt);
+  toast('✅ DP diajukan — menunggu approval GM');openDpMonitor();
+}
+async function dpApprove(id){
+  if(!can('Admin')){toast('GM/Admin only','err');return;}
+  const d=S.dp.find(x=>x.id===id);if(!d)return;
+  if(!confirm('Approve DP '+fR(pn(d.amount))+' ('+d.jenis+') untuk '+d.supplier+'?'))return;
+  const log=(d.log||[]).concat([{by:S.nama,at:new Date().toISOString(),n:'APPROVED by GM'}]);
+  const {error}=await sb.from('supplier_dp').update({status:'approved',gm_by:S.nama,gm_at:new Date().toISOString(),log:log}).eq('id',id);
+  if(error){toast('Gagal: '+error.message,'err');return;}
+  Object.assign(d,{status:'approved',gm_by:S.nama,log:log});
+  await audit('DP_SALDO_APPROVED','supplier_dp',id,{supplier:d.supplier,jenis:d.jenis},pn(d.amount));
+  toast('✅ DP approved');openDpMonitor();
+}
+async function dpReject(id){
+  if(!can('Admin')){toast('GM/Admin only','err');return;}
+  const d=S.dp.find(x=>x.id===id);if(!d)return;
+  const rsn=prompt('Alasan menolak DP '+d.supplier+' ('+d.jenis+'):');if(rsn===null)return;
+  if(!rsn.trim()){toast('Alasan wajib','err');return;}
+  const log=(d.log||[]).concat([{by:S.nama,at:new Date().toISOString(),n:'REJECTED: '+rsn.trim()}]);
+  const {error}=await sb.from('supplier_dp').update({status:'rejected',gm_by:S.nama,gm_note:rsn.trim(),log:log}).eq('id',id);
+  if(error){toast('Gagal: '+error.message,'err');return;}
+  Object.assign(d,{status:'rejected',gm_note:rsn.trim(),log:log});
+  await audit('DP_SALDO_REJECTED','supplier_dp',id,{supplier:d.supplier,reason:rsn.trim()},null);
+  toast('DP ditolak');openDpMonitor();
+}
+function dpLog(id){
+  const d=S.dp.find(x=>x.id===id);if(!d)return;
+  alert(d.supplier+' — '+d.jenis+'\n'+(d.log||[]).map(l=>dts(l.at)+' · '+(l.by||'')+'\n  '+l.n).join('\n'));
+}
+// potong saldo DP auto saat pembayaran; return total potongan
+async function dpApplyOnPay(t,payable){
+  const list=dpAktifSupplier(t.supplier).filter(d=>d.auto_potong);
+  let cut=0;const usedIds=[];
+  for(const d of list){
+    if(cut>=payable)break;
+    const take=Math.min(dpSisa(d),payable-cut);
+    if(take<=0)continue;
+    const log=(d.log||[]).concat([{by:S.nama,at:new Date().toISOString(),n:'Terpotong '+fR(take)+' — pembayaran '+t.id}]);
+    const {error}=await sb.from('supplier_dp').update({used:pn(d.used)+take,log:log}).eq('id',d.id);
+    if(!error){d.used=pn(d.used)+take;d.log=log;cut+=take;usedIds.push({id:d.id,jenis:d.jenis,amt:take});}
+  }
+  if(cut>0){t.dp_saldo_cut=cut;t.dp_saldo_detail=usedIds;await audit('DP_SALDO_CUT','inbounds',t.id,{supplier:t.supplier,detail:usedIds},cut);}
+  return cut;
+}
+
+// ---- WEIGHT SLIP MULTI-KATEGORI + potongan M&I otomatis ----
+const WS_KAT=['Bagus','Semi','Reject Supplier','Return Reject Buyer','Ampas'];
+function wsRowHtml(r){
+  r=r||{kat:'Bagus',kg:''};
+  return '<div class="ws-row" style="display:flex;gap:5px;margin-bottom:5px;align-items:center;">'+
+    '<select class="wr-k" style="flex:1.6;" onchange="wsCalc()">'+WS_KAT.map(k=>'<option '+(r.kat===k?'selected':'')+'>'+k+'</option>').join('')+'</select>'+
+    '<input type="number" class="wr-kg" placeholder="kg" value="'+(r.kg||'')+'" style="flex:1;" oninput="wsCalc()"/>'+
+    '<button class="btn btn-red btn-sm" onclick="this.parentElement.remove();wsCalc()">✕</button></div>';
+}
+function addWsRow(r){const c=document.getElementById('ws-rows');if(c){c.insertAdjacentHTML('beforeend',wsRowHtml(r));wsCalc();}}
+function wsCollect(){
+  const rows=[];document.querySelectorAll('#ws-rows .ws-row').forEach(function(el){
+    const kat=el.querySelector('.wr-k').value;const kg=pn(el.querySelector('.wr-kg').value);
+    if(kg>0)rows.push({kat:kat,kg:kg});
+  });return rows;
+}
+function wsCalc(){
+  const gross=pn((document.getElementById('a-brt')||{}).value);
+  const tare=pn((document.getElementById('a-tar')||{}).value);
+  const netT=Math.max(0,gross-tare);
+  const mois=pn((document.getElementById('a-mois')||{}).value);
+  const imp=pn((document.getElementById('a-imp')||{}).value);
+  const miPct=mois+imp;const miKg=netT*miPct/100;const netFinal=Math.max(0,netT-miKg);
+  const ne=document.getElementById('a-net');if(ne)ne.value=netT?netT.toFixed(0):'';
+  const mi=document.getElementById('ws-mi');if(mi)mi.textContent=miPct?(miPct.toFixed(2)+'% = '+f(Math.round(miKg))+' kg'):'-';
+  const nf=document.getElementById('ws-netfinal');if(nf)nf.textContent=f(Math.round(netFinal))+' kg';
+  const rows=wsCollect();const sum=rows.reduce((a,r)=>a+r.kg,0);
+  const chk=document.getElementById('ws-check');
+  if(chk){const diff=Math.round(netFinal-sum);
+    chk.innerHTML=rows.length?('Terbagi: '+f(sum)+' kg — '+(Math.abs(diff)<=1?'<span style="color:var(--green);">✓ pas dengan netto akhir</span>':'<span style="color:var(--yellow);">selisih '+f(diff)+' kg belum terbagi</span>')):'';
+  }
+  try{draftSave();}catch(e){}
+}
 
 // ---- CHAIN NUMBERING: DN/WS/NT nomor sama, prefix beda — format PREFIX-VEH-MMYY-#### ----
 function chainMMYY(){const x=new Date();return String(x.getMonth()+1).padStart(2,'0')+String(x.getFullYear()).slice(-2);}
@@ -2487,11 +2692,13 @@ function bLab(t){
 }
 function bWeight(t){
   const gross=pn(t.bruto),tare=pn(t.tara),net=pn(t.netto_kg)||(gross-tare);
-  return _meta([['Slip No.',docNo('WS',t.id)],['Date',_today()]])+
+  return _meta([['Slip No.',t.no_ws||docNo('WS',t.id)],['Date',_today()]])+
   '<div class="two"><div class="box"><div class="lbl">Supplier Name</div><div><b>'+(t.supplier||'-')+'</b></div><div class="mut">'+_loc(t)+'</div></div>'+
   '<div class="box"><div class="lbl">Plate No. / Driver</div><div>'+(t.plat||'-')+' / '+(t.driver||'-')+'</div></div></div>'+
   '<table><thead><tr><th>Date</th><th>Cargo</th><th class="r">FFA %</th><th class="r">MI %</th><th class="r">Gross (Kg)</th><th class="r">Tare (Kg)</th><th class="r">Netto (Kg)</th></tr></thead>'+
   '<tbody><tr><td>'+_today()+'</td><td>UCO</td><td class="r">'+_ext(t.catatan_sampel||'','FFA')+'</td><td class="r">'+_ext(t.catatan_sampel||'','M&I|MnI|MI|moisture')+'</td><td class="r">'+f(gross)+'</td><td class="r">'+f(tare)+'</td><td class="r tot">'+f(net)+'</td></tr></tbody></table>'+
+  '<div class="box"><div class="kv"><b>Net Timbang</b> '+f(pn(t.net_timbang)||net)+' kg &nbsp;·&nbsp; <b>Moisture</b> '+(t.mois_pct||0)+'% + <b>Impurities</b> '+(t.imp_pct||0)+'% = <b>M&amp;I</b> '+((pn(t.mois_pct)+pn(t.imp_pct)).toFixed(2))+'% (-'+f(pn(t.mi_kg))+' kg) &nbsp;·&nbsp; <b>NETTO AKHIR</b> <span class="tot">'+f(net)+' kg</span></div></div>'+
+  ((t.ws_items&&t.ws_items.length)?'<table><thead><tr><th>Kategori Barang</th><th class="r">Kg</th></tr></thead><tbody>'+t.ws_items.map(function(r){return '<tr><td>'+r.kat+'</td><td class="r">'+f(r.kg)+'</td></tr>';}).join('')+'<tr class="tot"><td class="lbl">Total Terbagi</td><td class="r">'+f(t.ws_items.reduce(function(a,r){return a+r.kg;},0))+'</td></tr></tbody></table>':'')+
   '<div class="box"><div class="two"><div><div class="lbl">Tank No.</div>'+(t.lokasi_simpan||'-')+'</div><div><div class="lbl">DN Ref</div>'+(t.no_dn||'-')+'</div></div></div>'+
   _sig([['OPERATOR','','Warehouse'],['DRIVER',t.driver||'',''],['VERIFIED','','Warehouse']]);
 }

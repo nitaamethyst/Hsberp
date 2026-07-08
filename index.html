@@ -245,6 +245,7 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
   <div class="tab" id="t-sla" onclick="showTab(this,'sla')">⚠️ SLA <span class="tbadge" id="b-sla">0</span></div>
   <div class="tab" id="t-supplier" onclick="showTab(this,'supplier')">🧪 Supplier Lab History</div>
   <div class="tab" id="t-crm" onclick="showTab(this,'crm')">🤝 CRM <span class="tbadge-y" id="b-crm">0</span></div>
+  <div class="tab" id="t-kpi" onclick="showTab(this,'kpi')">📊 KPI</div>
   <div class="tab" id="t-rekap" onclick="showTab(this,'rekap')">📂 Reports</div>
   <div class="tab" id="t-admin" onclick="showTab(this,'admin')">⚙️ Admin</div>
 </div>
@@ -608,6 +609,30 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
   <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Nama</th><th>Tipe</th><th>HP</th><th>Kota</th><th>Hub</th><th>Status</th><th class="r">Txn</th><th class="r">Vol (kg)</th><th>Last Txn</th><th>Follow-up</th></tr></thead><tbody id="crm-tb"></tbody></table></div>
 </div>
 
+<div id="tab-kpi" style="display:none">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+    <div>
+      <div style="font-size:15px;font-weight:700;">📊 KPI Bulanan — Self & Supervisor Assessment</div>
+      <div style="font-size:11px;color:var(--text2);">Skor = Σ (pencapaian% × bobot), maks 100/KPI · Grade A≥90 B≥80 C≥70 D≥60 E&lt;60 · Selisih &gt;10 → tinjau GM</div>
+    </div>
+    <div class="gap8">
+      <select class="sinp" id="kpi-div" style="width:auto;" onchange="renderKpi()"></select>
+      <input class="sinp" type="month" id="kpi-per" onchange="renderKpi()"/>
+      <button class="btn btn-ghost btn-sm" onclick="exportKpi()">⬇️ Excel</button>
+    </div>
+  </div>
+  <div class="card mb10"><div class="card-t">🤖 Angka Otomatis dari ERP (referensi kolom SUPV — bukan skor final)</div><div class="g4 mt10" id="kpi-auto"></div></div>
+  <div class="card mb10">
+    <div class="card-t">📝 Kartu Skor</div>
+    <div class="frow mt10"><div class="fg"><label>Nama Staff</label><input type="text" id="kpi-nama"/></div><div class="fg"><label>Atasan</label><input type="text" id="kpi-spv"/></div></div>
+    <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th style="width:26px;">No</th><th>KPI</th><th>Target</th><th class="r">Bobot</th><th class="r">SELF %</th><th class="r">SUPV %</th><th class="r">Self Skor</th><th class="r">Supv Skor</th></tr></thead><tbody id="kpi-tb"></tbody></table></div>
+    <div class="g4 mt10" id="kpi-tot"></div>
+    <div id="kpi-gm" class="mt10"></div>
+    <button class="btn btn-blue mt10" style="width:100%;" onclick="saveKpi()">💾 Simpan Penilaian Periode Ini</button>
+  </div>
+  <div class="card"><div class="card-t">📜 Riwayat Penilaian</div><div style="overflow-x:auto;" class="mt10"><table class="tbl"><thead><tr><th>Periode</th><th>Divisi</th><th>Staff</th><th class="r">Self</th><th class="r">Supv</th><th class="r">Gap</th><th class="r">Final</th><th>Grade</th><th>Status</th></tr></thead><tbody id="kpi-hist"></tbody></table></div></div>
+</div>
+
 <div id="tab-rekap" style="display:none">
   <div style="font-size:15px;font-weight:700;margin-bottom:12px;">Reports & Export</div>
   <div class="g2 mb10">
@@ -702,16 +727,16 @@ const OB_DOCS=[
 
 // Role access: tab apa yang dilihat tiap role
 const ROLE_TABS={
-  'Admin':['dash','inbound','outbound','kas','expenses','inventory','warehouse','reports','unpaid','unlunas','ga','sla','supplier','crm','rekap','admin'],
-  'Finance':['dash','kas','expenses','inventory','reports','unpaid','unlunas','sla','supplier','crm'],
-  'Purchase-Beli':['dash','inbound','warehouse','inventory','sla','supplier','crm'],
-  'Sales-Jual':['dash','outbound','inventory','unlunas','sla','crm'],
-  'Gudang':['dash','inbound','outbound','inventory','warehouse','sla','supplier'],
-  'GA':['dash','ga','inventory','supplier','rekap']
+  'Admin':['dash','inbound','outbound','kas','expenses','inventory','warehouse','reports','unpaid','unlunas','ga','sla','supplier','crm','kpi','rekap','admin'],
+  'Finance':['dash','kas','expenses','inventory','reports','unpaid','unlunas','sla','supplier','crm','kpi'],
+  'Purchase-Beli':['dash','inbound','warehouse','inventory','sla','supplier','crm','kpi'],
+  'Sales-Jual':['dash','outbound','inventory','unlunas','sla','crm','kpi'],
+  'Gudang':['dash','inbound','outbound','inventory','warehouse','sla','supplier','kpi'],
+  'GA':['dash','ga','inventory','supplier','rekap','kpi']
 };
 
 // ════════════ STATE ════════════
-let S={hub:'Jakarta',role:'Gudang',uid:null,email:'',nama:'',ibs:[],obs:[],kas:[],expenses:[],profiles:[],settings:{},containers:[],receivings:[],returns:[],opening:[],ampas:[],audit:[],banks:[],crm:[],dp:[]};
+let S={hub:'Jakarta',role:'Gudang',uid:null,email:'',nama:'',ibs:[],obs:[],kas:[],expenses:[],profiles:[],settings:{},containers:[],receivings:[],returns:[],opening:[],ampas:[],audit:[],banks:[],crm:[],dp:[],kpi:[]};
 let realtimeChans=[];
 
 // ════════════ HELPERS ════════════
@@ -907,7 +932,7 @@ async function loadAll(){
     S.ibs=ib.data||[];S.obs=ob.data||[];S.kas=ks.data||[];S.profiles=pr.data||[];if(ex&&!ex.error)S.expenses=ex.data||[];
     try{const stg=await withTimeout(sb.from('app_settings').select('*'),8000,'settings');if(stg&&!stg.error){S.settings={};(stg.data||[]).forEach(r=>{S.settings[r.key]=r.value;});}}catch(e){}
     try{
-      const [cn,rv,rt,op,am,au,bk,cr,dpx]=await Promise.all([
+      const [cn,rv,rt,op,am,au,bk,cr,dpx,kp]=await Promise.all([
         sb.from('containers').select('*').order('code',{ascending:true}),
         sb.from('receivings').select('*').order('tgl',{ascending:false}),
         sb.from('returns').select('*').order('tgl',{ascending:false}),
@@ -916,7 +941,8 @@ async function loadAll(){
         sb.from('audit_log').select('*').order('ts',{ascending:false}).limit(200),
         sb.from('bank_accounts').select('*').order('code',{ascending:true}),
         sb.from('crm_contacts').select('*').order('name',{ascending:true}),
-        sb.from('supplier_dp').select('*').order('created_at',{ascending:false})
+        sb.from('supplier_dp').select('*').order('created_at',{ascending:false}),
+        sb.from('kpi_scores').select('*').order('period',{ascending:false})
       ]);
       if(cn&&!cn.error)S.containers=cn.data||[];
       if(rv&&!rv.error)S.receivings=rv.data||[];
@@ -927,6 +953,7 @@ async function loadAll(){
       if(bk&&!bk.error)S.banks=bk.data||[];
       if(cr&&!cr.error)S.crm=cr.data||[];
       if(dpx&&!dpx.error)S.dp=dpx.data||[];
+      if(kp&&!kp.error)S.kpi=kp.data||[];
     }catch(e){}
   }catch(e){
     toast('Data: '+(e.message||e),'err');
@@ -949,6 +976,7 @@ function subscribeRealtime(){
     .on('postgres_changes',{event:'*',schema:'public',table:'ampas'},mk('ampas'))
     .on('postgres_changes',{event:'*',schema:'public',table:'crm_contacts'},mk('crm'))
     .on('postgres_changes',{event:'*',schema:'public',table:'supplier_dp'},mk('dp'))
+    .on('postgres_changes',{event:'*',schema:'public',table:'kpi_scores'},mk('kpi'))
     .subscribe(status=>{
       const dot=document.getElementById('syncDot');
       if(status==='SUBSCRIBED'){dot.className='sync-dot';dot.title='Synced realtime';}
@@ -986,7 +1014,7 @@ async function nextCounter(key){const {data}=await sb.rpc('next_counter',{k:key}
 function allowedTabs(){return ROLE_TABS[S.role]||['dash'];}
 function applyRoleVisibility(){
   const allowed=allowedTabs();
-  ['dash','inbound','outbound','kas','expenses','inventory','warehouse','reports','unpaid','unlunas','ga','sla','supplier','crm','rekap','admin'].forEach(function(t){
+  ['dash','inbound','outbound','kas','expenses','inventory','warehouse','reports','unpaid','unlunas','ga','sla','supplier','crm','kpi','rekap','admin'].forEach(function(t){
     const el=document.getElementById('t-'+t);if(el)el.style.display=allowed.indexOf(t)>=0?'':'none';
   });
   // tombol new
@@ -1000,9 +1028,9 @@ function applyRoleVisibility(){
 function gotoTab(name){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));const el=document.getElementById('t-'+name);if(el)el.classList.add('active');showTabContent(name);}
 function showTab(el,name){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');showTabContent(name);}
 function showTabContent(name){
-  ['dash','inbound','outbound','kas','expenses','inventory','warehouse','reports','unpaid','unlunas','ga','sla','supplier','crm','rekap','admin'].forEach(t=>{const e=document.getElementById('tab-'+t);if(e)e.style.display='none';});
+  ['dash','inbound','outbound','kas','expenses','inventory','warehouse','reports','unpaid','unlunas','ga','sla','supplier','crm','kpi','rekap','admin'].forEach(t=>{const e=document.getElementById('tab-'+t);if(e)e.style.display='none';});
   const el=document.getElementById('tab-'+name);if(el)el.style.display='';
-  const m={dash:renderDash,inbound:function(){renderIb();},outbound:function(){renderOb();},kas:renderKasH,expenses:renderExpenses,inventory:renderInventory,warehouse:renderWarehouse,reports:renderReports,unpaid:renderUnpaid,unlunas:renderUnlunas,ga:renderGA,sla:renderSLA,supplier:renderSupplierLab,crm:function(){renderCrm();},rekap:renderRekap,admin:renderAdmin};
+  const m={dash:renderDash,inbound:function(){renderIb();},outbound:function(){renderOb();},kas:renderKasH,expenses:renderExpenses,inventory:renderInventory,warehouse:renderWarehouse,reports:renderReports,unpaid:renderUnpaid,unlunas:renderUnlunas,ga:renderGA,sla:renderSLA,supplier:renderSupplierLab,crm:function(){renderCrm();},kpi:function(){renderKpi();},rekap:renderRekap,admin:renderAdmin};
   if(m[name])m[name]();
 }
 function upHub(){document.getElementById('hubL').textContent=S.hub==='Medan'?'MDN':'JKT';}
@@ -1024,6 +1052,7 @@ function refAll(){updBadges();renderDash();try{renderNotifications();}catch(e){}
   if(vis('reports')){const rm=document.getElementById('rep-month');if(rm&&!rm.value)rm.value=new Date().toISOString().slice(0,7);renderReports();}
   if(vis('supplier'))renderSupplierLab();
   if(vis('crm'))renderCrm();
+  if(vis('kpi'))renderKpi();
 }
 function updBadges(){
   document.getElementById('b-ib').textContent=S.ibs.filter(t=>t.stage!=='done'&&t.stage!=='ditahan').length;
@@ -1608,6 +1637,135 @@ async function dpApplyOnPay(t,payable){
 
 
 
+
+const KPI_DEF={"Finance": {"title": "FINANCE  (HSB-02-FIN)", "kpis": [{"n": "Report timeliness / Ketepatan waktu pelaporan", "t": "100% on-time", "w": 0.2}, {"n": "Bank recon accuracy / Akurasi rekonsiliasi bank", "t": "0 open variance / 0 selisih", "w": 0.15}, {"n": "Petty cash opname variance / Selisih opname petty cash", "t": "0 / nol", "w": 0.15}, {"n": "Memo verification SLA / SLA verifikasi memo", "t": "≤ 4 hours / jam", "w": 0.15}, {"n": "AR collection on time / Penagihan AR tepat waktu", "t": "≥ 95%", "w": 0.15}, {"n": "Invoice accuracy / Ketepatan invoice", "t": "≥ 98% no revision", "w": 0.1}, {"n": "Tax compliance / Kepatuhan pajak", "t": "100% on-time", "w": 0.1}]}, "Accounting": {"title": "ACCOUNTING  (HSB-03-ACC)", "kpis": [{"n": "Closing timeliness / Ketepatan tutup buku", "t": "100% on schedule", "w": 0.2}, {"n": "Journal accuracy / Akurasi jurnal", "t": "≥ 98% no material correction", "w": 0.2}, {"n": "COGS deviation / Deviasi HPP", "t": "≤ 2%", "w": 0.15}, {"n": "Inventory recon variance / Selisih rekon persediaan", "t": "≤ 0.5%", "w": 0.2}, {"n": "Input-VAT accuracy / Ketepatan PPN masukan", "t": "100%", "w": 0.15}, {"n": "Supporting docs completeness / Kelengkapan dokumen", "t": "100%", "w": 0.1}]}, "Commercial": {"title": "PURCHASE/COMMERCIAL  (HSB-04-COM)", "kpis": [{"n": "Daily collection volume / Volume pengambilan harian", "t": "≥ 100% per-unit target", "w": 0.2}, {"n": "Vehicle utilization / Utilisasi 3 mobil ops", "t": "3 units dispatched & weighed-in", "w": 0.15}, {"n": "Landed cost vs break-even / Landed cost vs break-even", "t": "≤ break-even hub", "w": 0.2}, {"n": "Payment Memo SLA / SLA Memo Payment", "t": "≤ 4 h after DO upload", "w": 0.15}, {"n": "Master file accuracy / Akurasi master file", "t": "≥ 98% verified", "w": 0.15}, {"n": "DP absorption / Penyerapan DP", "t": "≥ 95% on time", "w": 0.15}]}, "Warehouse": {"title": "WAREHOUSE  (HSB-06-WH)", "kpis": [{"n": "Stock accuracy (opname vs ERP) / Akurasi stok", "t": "≤ 0.5%", "w": 0.2}, {"n": "Weighing accuracy / Akurasi timbang", "t": "≤ 0.3% vs document", "w": 0.2}, {"n": "Lab test compliance / Kepatuhan uji lab", "t": "100% per receipt >500 kg", "w": 0.15}, {"n": "Scale calibration on schedule / Kalibrasi tepat jadwal", "t": "100%", "w": 0.15}, {"n": "Inbound same-day (D+0) / Inbound selesai D+0", "t": "≥ 90% (arrivals <15:00)", "w": 0.15}, {"n": "K3 incidents / Insiden K3", "t": "0 per month / per bulan", "w": 0.15}]}, "Sales": {"title": "TRADE/SALES  (HSB-07-TRD)", "kpis": [{"n": "Sell volume vs forecast / Volume jual vs forecast", "t": "≥ 100% monthly", "w": 0.25}, {"n": "Buyer PO fulfillment / Pemenuhan PO buyer", "t": "≥ 98% on-time", "w": 0.2}, {"n": "Forecast accuracy / Akurasi forecast", "t": "deviation ≤ 10%", "w": 0.15}, {"n": "Weight variance at buyer / Selisih timbang di buyer", "t": "≤ 0.3%", "w": 0.15}, {"n": "Collection (DSO) / Penagihan", "t": "per buyer terms / sesuai termin", "w": 0.15}, {"n": "Shipping docs complete / Kelengkapan dokumen kirim", "t": "100%", "w": 0.1}]}, "GA-HR": {"title": "GA/HR/LEGAL/ISCC  (HSB-10-GA)", "kpis": [{"n": "ISCC mass balance / Mass balance ISCC", "t": "100% balanced & documented", "w": 0.2}, {"n": "GDrive archive timeliness / Ketepatan arsip", "t": "≤ 1 working day", "w": 0.2}, {"n": "Doc checklist completeness / Kelengkapan checklist", "t": "100% per transaction", "w": 0.15}, {"n": "Supplier registration / Registrasi supplier", "t": "≥ 98% complete & verified", "w": 0.15}, {"n": "Permits & legal validity / Validitas perizinan", "t": "100% valid", "w": 0.15}, {"n": "Payroll & HR admin timeliness / Ketepatan SDM", "t": "100% on-time", "w": 0.15}]}};
+// ---- MODUL KPI BULANAN (dari HSB KPI Scoring Workbook — angka & bobot persis) ----
+const KPI_ROLE_DIV={'Finance':['Finance','Accounting'],'Purchase-Beli':['Commercial'],'Gudang':['Warehouse'],'Sales-Jual':['Sales'],'GA':['GA-HR']};
+const KPI_GAP=10;
+function kpiGrade(x){return x>=90?'A':x>=80?'B':x>=70?'C':x>=60?'D':'E';}
+function kpiDivsForRole(){return S.role==='Admin'?Object.keys(KPI_DEF):(KPI_ROLE_DIV[S.role]||[]);}
+function kpiPeriod(){const e=document.getElementById('kpi-per');return (e&&e.value)||new Date().toISOString().slice(0,7);}
+function kpiRec(div,per){return (S.kpi||[]).find(r=>r.divisi===div&&r.period===per&&r.hub===S.hub);}
+
+// Angka otomatis dari data ERP (referensi, bukan skor)
+function kpiAuto(div,per){
+  const inM=d=>String(d||'').slice(0,7)===per;
+  const ibs=(S.ibs||[]).filter(t=>t.hub===S.hub&&inM(t.tanggal));
+  const obs=(S.obs||[]).filter(t=>t.hub===S.hub&&inM(t.tanggal));
+  const out=[];
+  const pctTxt=(a,b)=>b?((a/b*100).toFixed(0)+'% ('+a+'/'+b+')'):'-';
+  if(div==='Warehouse'){
+    const w=ibs.filter(t=>pn(t.wb_actual_kg)>0&&pn(t.wb_supplier_kg)>0);
+    const avg=w.length?(w.reduce((a,t)=>a+Math.abs(pn(t.wb_diff_pct)),0)/w.length):0;
+    out.push(['Akurasi timbang (avg selisih)',w.length?avg.toFixed(2)+'%':'-','target ≤0,3%']);
+    const big=ibs.filter(t=>pn(t.netto_kg)>500||pn(t.rencana_beli)>500);
+    out.push(['Kepatuhan uji lab >500kg',pctTxt(big.filter(t=>t.lab_result||(t.docs&&t.docs.lab_scan)).length,big.length),'target 100%']);
+    const ops=(S.opening||[]).filter(o=>o.hub===S.hub&&inM(o.tgl));
+    const lossKg=ops.reduce((a,o)=>a+Math.abs(pn(o.diff_kg)),0);
+    out.push(['Selisih opname (abs total)',ops.length?f(Math.round(lossKg))+' kg':'-','target ≤0,5%']);
+    const d0=ibs.filter(t=>{const lg=(t.log||[]);const up=lg.find(l=>String(l.n||'').indexOf('DO')>=0||l.s==='upload');return up&&String(up.at||'').slice(0,10)===t.tanggal;});
+    out.push(['Inbound selesai D+0',pctTxt(d0.length,ibs.length),'target ≥90%']);
+  }else if(div==='Finance'){
+    const paid=ibs.filter(t=>t.paid);
+    out.push(['Pembayaran dgn bukti lengkap',pctTxt(paid.filter(t=>t.docs&&t.docs.bukti_bayar).length,paid.length),'target 100%']);
+    const days=new Set((S.kas||[]).filter(k=>k.hub===S.hub&&inM(k.tgl)).map(k=>k.tgl));
+    out.push(['Hari kas pagi terisi',days.size+' hari','target tiap hari kerja']);
+    const st=obs.filter(t=>t.stage==='done');
+    out.push(['Penjualan lunas (AR)',pctTxt(st.length,obs.length),'target ≥95%']);
+  }else if(div==='Commercial'){
+    const dp=(S.dp||[]).filter(d=>d.status==='approved');
+    const absorp=dp.reduce((a,d)=>a+pn(d.used),0);const tot=dp.reduce((a,d)=>a+pn(d.amount),0);
+    out.push(['Penyerapan saldo DP',tot?((absorp/tot*100).toFixed(0)+'%'):'-','target ≥95%']);
+    const nt=ibs.filter(t=>t.no_po);
+    out.push(['Transaksi ber-nota',pctTxt(nt.length,ibs.length),'kelengkapan']);
+    out.push(['Volume beli bulan ini',f(Math.round(ibs.reduce((a,t)=>a+pn(t.netto_kg),0)))+' kg','vs target unit']);
+  }else if(div==='Sales'){
+    out.push(['PO buyer terpenuhi (done)',pctTxt(obs.filter(t=>t.stage==='done').length,obs.length),'target ≥98%']);
+    out.push(['Volume jual bulan ini',f(Math.round(obs.reduce((a,t)=>a+pn(t.vol_kg),0)))+' kg','vs forecast']);
+    const dc=obs.filter(t=>t.stage==='done'&&t.docs&&t.docs.invoice);
+    out.push(['Dokumen kirim lengkap',pctTxt(dc.length,obs.filter(t=>t.stage==='done').length),'target 100%']);
+  }else if(div==='GA-HR'){
+    const done=[...ibs.filter(t=>t.stage==='done'),...obs.filter(t=>t.stage==='done')];
+    out.push(['Arsip GDrive tepat',pctTxt(done.filter(t=>t.gdoc&&t.gdoc.gdrive).length,done.length),'target ≤1 hari kerja']);
+    const reg=(S.crm||[]).filter(c=>c.type==='supplier');
+    out.push(['Registrasi supplier lengkap',pctTxt(reg.filter(c=>c.hp&&c.bank_acc).length,reg.length),'HP+rekening terisi']);
+  }else if(div==='Accounting'){
+    const ops=(S.opening||[]).filter(o=>o.hub===S.hub&&inM(o.tgl));
+    out.push(['Selisih rekon persediaan',ops.length?f(Math.round(ops.reduce((a,o)=>a+Math.abs(pn(o.diff_kg)),0)))+' kg':'-','target ≤0,5%']);
+    out.push(['Transaksi PPN tercatat',(ibs.filter(t=>t.ppn_mode&&t.ppn_mode!=='non').length)+' txn','cek faktur masukan']);
+  }
+  return out;
+}
+function renderKpi(){
+  const sel=document.getElementById('kpi-div');if(!sel)return;
+  const divs=kpiDivsForRole();
+  if(!sel.options.length||sel._role!==S.role){sel.innerHTML=divs.map(d=>'<option>'+d+'</option>').join('');sel._role=S.role;}
+  const per=document.getElementById('kpi-per');if(per&&!per.value)per.value=new Date().toISOString().slice(0,7);
+  const div=sel.value||divs[0];if(!div)return;
+  const p=kpiPeriod();
+  // auto metrics
+  const au=document.getElementById('kpi-auto');
+  au.innerHTML=kpiAuto(div,p).map(m=>'<div class="card"><div class="card-t">'+m[0]+'</div><div class="card-v" style="font-size:12px;">'+m[1]+'</div><div class="card-s">'+m[2]+'</div></div>').join('')||'<div class="mut" style="font-size:10px;">Divisi ini dinilai manual dari catatan harian.</div>';
+  // scorecard
+  const rec=kpiRec(div,p);
+  const ent=(rec&&rec.entries)||KPI_DEF[div].kpis.map(k=>({n:k.n,t:k.t,w:k.w,self:'',supv:''}));
+  document.getElementById('kpi-nama').value=(rec&&rec.staff_name)||'';
+  document.getElementById('kpi-spv').value=(rec&&rec.supervisor_name)||'';
+  const lock=!can('Admin');
+  document.getElementById('kpi-tb').innerHTML=ent.map(function(k,i){
+    return '<tr><td>'+(i+1)+'</td><td style="font-size:10px;">'+crmEsc(k.n)+'</td><td style="font-size:9px;color:var(--text3);">'+crmEsc(k.t)+'</td><td class="r mono">'+(k.w*100).toFixed(0)+'%</td>'+
+    '<td class="r"><input type="number" min="0" max="100" class="kp-self" data-i="'+i+'" value="'+(k.self===0||k.self?k.self:'')+'" style="width:58px;text-align:right;" oninput="kpiCalc()"/></td>'+
+    '<td class="r"><input type="number" min="0" max="100" class="kp-supv" data-i="'+i+'" value="'+(k.supv===0||k.supv?k.supv:'')+'" style="width:58px;text-align:right;" '+(lock?'disabled title="Kolom SUPV diisi GM/atasan"':'')+' oninput="kpiCalc()"/></td>'+
+    '<td class="r mono kp-ss" id="kp-ss-'+i+'">-</td><td class="r mono" id="kp-vs-'+i+'">-</td></tr>';
+  }).join('');
+  window._kpiDiv=div;window._kpiEnt=ent;
+  kpiCalc();
+  // riwayat
+  const hist=(S.kpi||[]).filter(r=>r.hub===S.hub&&(S.role==='Admin'||divs.indexOf(r.divisi)>=0));
+  document.getElementById('kpi-hist').innerHTML=hist.length?hist.map(function(r){
+    const g=kpiGrade(pn(r.final_score||r.supv_score||0));
+    const st=r.status==='final'?'<span class="badge b-green">Final</span>':r.status==='gm_review'?'<span class="badge b-yellow">⏳ GM</span>':'<span class="badge b-gray">Draft</span>';
+    return '<tr><td class="mono">'+r.period+'</td><td>'+r.divisi+'</td><td>'+crmEsc(r.staff_name||'-')+'</td><td class="r mono">'+pn(r.self_score).toFixed(1)+'</td><td class="r mono">'+pn(r.supv_score).toFixed(1)+'</td><td class="r mono" style="color:'+(pn(r.gap)>KPI_GAP?'var(--red)':'inherit')+';">'+pn(r.gap).toFixed(1)+'</td><td class="r mono" style="font-weight:700;">'+(r.final_score!=null?pn(r.final_score).toFixed(1):'-')+'</td><td><span class="badge '+(g==='A'||g==='B'?'b-green':g==='C'?'b-yellow':'b-red')+'">'+g+'</span></td><td>'+st+'</td></tr>';
+  }).join(''):'<tr><td colspan="9" style="text-align:center;padding:14px;color:var(--text3);">Belum ada penilaian.</td></tr>';
+}
+function kpiCalc(){
+  const ent=window._kpiEnt||[];let ss=0,vs=0;
+  document.querySelectorAll('.kp-self').forEach(function(e){const i=+e.dataset.i;const v=Math.min(100,pn(e.value));ent[i].self=e.value===''?'':pn(e.value);const sc=v*ent[i].w;ss+=e.value===''?0:sc;document.getElementById('kp-ss-'+i).textContent=e.value===''?'-':sc.toFixed(1);});
+  document.querySelectorAll('.kp-supv').forEach(function(e){const i=+e.dataset.i;const v=Math.min(100,pn(e.value));ent[i].supv=e.value===''?'':pn(e.value);const sc=v*ent[i].w;vs+=e.value===''?0:sc;document.getElementById('kp-vs-'+i).textContent=e.value===''?'-':sc.toFixed(1);});
+  const gap=Math.abs(ss-vs);
+  const gm=gap>KPI_GAP;
+  document.getElementById('kpi-tot').innerHTML=
+    '<div class="card"><div class="card-t">Self Score</div><div class="card-v">'+ss.toFixed(1)+'</div><div class="card-s">Grade '+kpiGrade(ss)+'</div></div>'+
+    '<div class="card"><div class="card-t">Supervisor Score</div><div class="card-v">'+vs.toFixed(1)+'</div><div class="card-s">Grade '+kpiGrade(vs)+'</div></div>'+
+    '<div class="card '+(gm?'c-red':'')+'"><div class="card-t">Gap |Self−Supv|</div><div class="card-v" style="'+(gm?'color:var(--red);':'')+'">'+gap.toFixed(1)+'</div><div class="card-s">ambang '+KPI_GAP+'</div></div>'+
+    '<div class="card c-green"><div class="card-t">Skor Final</div><div class="card-v">'+(gm?'⏳ GM':vs.toFixed(1))+'</div><div class="card-s">'+(gm?'perlu keputusan GM':'auto = supv')+'</div></div>';
+  const gmEl=document.getElementById('kpi-gm');
+  gmEl.innerHTML=gm?(can('Admin')?'<div class="alert a-warn">⚖️ Gap melewati ambang — GM tentukan skor final: <input type="number" id="kpi-final" min="0" max="100" style="width:70px;"/> </div>':'<div class="alert a-warn">⚖️ Gap melewati ambang '+KPI_GAP+' — menunggu skor final dari GM.</div>'):'';
+  window._kpiSS=ss;window._kpiVS=vs;window._kpiGap=gap;
+}
+async function saveKpi(){
+  const div=window._kpiDiv;if(!div)return;
+  const per=kpiPeriod();
+  const ent=window._kpiEnt||[];
+  const ss=window._kpiSS||0,vs=window._kpiVS||0,gap=window._kpiGap||0;
+  const gm=gap>KPI_GAP;
+  let fin=null,status='draft';
+  if(vs>0&&!gm){fin=vs;status='final';}
+  else if(gm){const fe=document.getElementById('kpi-final');if(fe&&fe.value!==''&&can('Admin')){fin=Math.min(100,pn(fe.value));status='final';}else status='gm_review';}
+  const row={period:per,divisi:div,hub:S.hub,staff_name:document.getElementById('kpi-nama').value.trim(),supervisor_name:document.getElementById('kpi-spv').value.trim(),entries:ent,self_score:ss,supv_score:vs,gap:gap,gm_needed:gm,final_score:fin,final_by:(fin!=null&&gm)?S.nama:null,status:status,updated_by:S.nama,updated_at:new Date().toISOString()};
+  const ex=kpiRec(div,per);
+  let error;
+  if(ex){({error}=await sb.from('kpi_scores').update(row).eq('id',ex.id));if(!error)Object.assign(ex,row);}
+  else{row.created_by=S.nama;const r=await sb.from('kpi_scores').insert(row).select();error=r.error;if(!error&&r.data&&r.data[0])S.kpi.unshift(r.data[0]);}
+  if(error){toast('Gagal simpan: '+error.message,'err');return;}
+  await audit('KPI_SAVE','kpi_scores',ex?ex.id:'',{divisi:div,period:per,self:ss.toFixed(1),supv:vs.toFixed(1),gap:gap.toFixed(1),status:status},fin);
+  toast(status==='final'?'✅ KPI final tersimpan — Grade '+kpiGrade(fin):status==='gm_review'?'📨 Tersimpan — menunggu skor final GM':'💾 Draft tersimpan');
+  renderKpi();
+}
+function exportKpi(){
+  const rows=(S.kpi||[]).map(r=>({periode:r.period,divisi:r.divisi,hub:r.hub,staff:r.staff_name||'',self:pn(r.self_score),supv:pn(r.supv_score),gap:pn(r.gap),final:r.final_score!=null?pn(r.final_score):'',grade:kpiGrade(pn(r.final_score||r.supv_score||0)),status:r.status||''}));
+  _xlsExport(rows,['Periode','Divisi','Hub','Staff','Self','Supv','Gap','Final','Grade','Status'],['periode','divisi','hub','staff','self','supv','gap','final','grade','status'],'KPI_HSB_'+td()+'.xlsx');
+}
 
 // ---- ㉕ EXPORT EXCEL PER TAB/ROLE (xlsx bertabel, bukan PDF) ----
 function _rupOk(){return S.role!=='Gudang';}

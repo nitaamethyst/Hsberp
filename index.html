@@ -306,6 +306,8 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
       <div class="fg"><label>Date</label><input type="date" id="kas-tgl"/></div>
       <div class="fg"><label>Cash Balance (Rp)</label><input type="number" id="kas-saldo" placeholder="0"/></div>
     </div>
+    <div class="sect-t mt10" style="border:none;">🏦 Saldo Bank Pagi Ini <span style="font-size:10px;color:var(--text3);font-weight:400;">— wajib diisi setiap pagi / mandatory every morning</span></div>
+    <div class="frow" id="kas-banks"></div>
     <div class="sect-t mt10" style="border:none;">💵 Rincian Petty Cash <span style="font-size:10px;color:var(--text3);font-weight:400;">/ Petty cash items — tiap item wajib bukti / each item requires proof</span></div>
     <div id="petty-items"></div>
     <button class="btn btn-ghost btn-sm mt10" onclick="addPettyItem()">+ Tambah Item / Add Item</button>
@@ -1070,7 +1072,7 @@ function renderDash(){
   updBadges();
   document.getElementById('dash-date').textContent=new Date().toLocaleDateString('en-US',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'  -  Hub: '+S.hub;
   const tk=S.kas.filter(k=>k.tgl===td()&&k.hub===S.hub);
-  document.getElementById('dash-kasalert').innerHTML=(!tk.length&&(can('Finance')))?'<div class="alert a-warn mb10">⚠️ Morning cash report not entered yet. <button class="btn btn-yellow btn-sm" onclick="gotoTab(\'kas\')">Enter Now</button></div>':'';
+  document.getElementById('dash-kasalert').innerHTML=(!tk.length&&(can('Finance')))?'<div class="alert a-warn mb10">⚠️ Laporan pagi belum diisi (kas + saldo 3 rekening bank). <button class="btn btn-yellow btn-sm" onclick="gotoTab(\'kas\')">Enter Now</button></div>':'';
   const ibAct=S.ibs.filter(t=>t.stage!=='done'&&t.stage!=='ditahan'&&t.hub===S.hub).length;
   const obAct=S.obs.filter(t=>t.stage!=='done'&&t.hub===S.hub).length;
   const ton=S.ibs.filter(t=>t.paid_at&&t.paid_at.indexOf(td())===0&&t.hub===S.hub).reduce((a,t)=>a+pn(t.netto_kg),0);
@@ -1821,7 +1823,7 @@ function renderBank(){
     const saldo=pn(b.saldo_awal)-tot;
     outs.forEach(function(o){_bankRows.push({acc:b.code,tgl:o.tgl,ref:o.ref,amt:o.amt});});
     const editBtn=can('Finance')?'<button class="btn btn-ghost btn-sm" style="font-size:8px;padding:2px 5px;" onclick="event.stopPropagation();setSaldoAwal(\''+b.id+'\')">set awal</button>':'';
-    return '<div class="card" style="cursor:pointer;" onclick="showBankMoves(\''+crmEsc(b.code)+'\')"><div class="card-t">'+crmEsc(b.code)+' '+editBtn+'</div><div class="card-v mono" style="font-size:13px;color:'+(saldo<0?'var(--red)':'var(--green)')+';">'+fRb(saldo)+'</div><div class="card-s">awal '+fRb(pn(b.saldo_awal))+' − keluar '+fRb(tot)+'</div></div>';
+    const rep=(function(){for(const k of (S.kas||[])){if(k.hub!==S.hub)continue;const v=k.bank_balances&&k.bank_balances[b.code];if(v!=null)return {v:pn(v),tgl:k.tgl};}return null;})();return '<div class="card" style="cursor:pointer;" onclick="showBankMoves(\''+crmEsc(b.code)+'\')"><div class="card-t">'+crmEsc(b.code)+(b.is_nonppn?' <span style="color:var(--yellow);font-size:8px;">non-PPN</span>':'')+' '+editBtn+'</div><div class="card-v mono" style="font-size:13px;color:'+(saldo<0?'var(--red)':'var(--green)')+';">'+fRb(saldo)+'</div><div class="card-s">awal '+fRb(pn(b.saldo_awal))+' − keluar '+fRb(tot)+(rep?'<br>lapor pagi '+rep.tgl+': <b>'+fRb(rep.v)+'</b>':'')+'</div></div>';
   }).join('')||'<div class="mut" style="font-size:11px;">Belum ada rekening di Admin → Bank Accounts.</div>';
 }
 async function setSaldoAwal(bid){
@@ -2200,6 +2202,17 @@ function removePettyItem(i){_pettyItems.splice(i,1);renderPettyItems();}
 function pickPettyProof(ev,i){const f=ev.target.files[0];if(!f)return;_readProof(f,function(p){_pettyItems[i].proof_name=p.name;_pettyItems[i].proof_data=p.data;renderPettyItems();});}
 function updatePettyTotal(){const t=_pettyItems.reduce((a,it)=>a+pn(it.amount),0);const el=document.getElementById('petty-total');if(el)el.textContent=fR(t);}
 
+
+// ---- SALDO BANK WAJIB PAGI (rek 7001 PPN, 9003 PPN, non-PPN Mufni) ----
+function kasBankList(){return (S.banks||[]).filter(b=>b.daily_check);}
+function renderKasBanks(){
+  const el=document.getElementById('kas-banks');if(!el)return;
+  const list=kasBankList();
+  el.innerHTML=list.length?list.map(function(b,i){
+    return '<div class="fg"><label>'+crmEsc(b.code)+(b.is_nonppn?' <span style="color:var(--yellow);font-size:9px;">(non-PPN)</span>':' <span style="color:var(--green);font-size:9px;">(PPN)</span>')+'<span class="req">*</span></label><input type="number" class="kas-bank" data-code="'+crmEsc(b.code)+'" placeholder="saldo rekening"/></div>';
+  }).join(''):'<div class="mut" style="font-size:10px;">Tandai rekening wajib-pagi di database (daily_check) — jalankan SQL rilis6.</div>';
+}
+
 async function submitKas(){
   if(!can('Finance')){toast('Finance/Admin only','err');return;}
   if(!financeProofGate())return;
@@ -2212,7 +2225,11 @@ async function submitKas(){
     if(!items[i].proof_data){toast('Item '+(i+1)+' ('+(items[i].note||'')+'): bukti wajib. / proof required.','err');return;}
   }
   const petty=items.reduce((a,it)=>a+pn(it.amount),0);
-  const payload={tgl:tgl,hub:S.hub,saldo:saldo,petty:petty,by_user:S.nama,petty_items:items};
+  // saldo bank wajib tiap pagi
+  const bb={};let bbMiss=null;
+  document.querySelectorAll('.kas-bank').forEach(function(e){const v=e.value;if(v===''&&!bbMiss)bbMiss=e.dataset.code;bb[e.dataset.code]=pn(v);});
+  if(kasBankList().length&&bbMiss){toast('Saldo rekening '+bbMiss+' wajib diisi setiap pagi / bank balance required','err');return;}
+  const payload={tgl:tgl,hub:S.hub,saldo:saldo,petty:petty,by_user:S.nama,petty_items:items,bank_balances:bb};
   // sertakan bukti pertama sebagai proof utama (kompatibilitas)
   if(items.length){payload.proof_name=items[0].proof_name;payload.proof_data=items[0].proof_data;}
   const {data,error}=await sb.from('kas_reports').insert(payload).select();
@@ -2220,7 +2237,7 @@ async function submitKas(){
   if(data&&data[0])S.kas.unshift(data[0]);
   toast('Cash report saved: '+fR(saldo+petty));
   _pettyItems=[];renderPettyItems();
-  document.getElementById('kas-saldo').value='';
+  document.getElementById('kas-saldo').value='';document.querySelectorAll('.kas-bank').forEach(function(e){e.value='';});
   renderKasH();renderDash();
 }
 
@@ -2236,7 +2253,7 @@ function viewPettyProof(kasId,idx){
 }
 
 function renderKasH(){
-  try{renderBank();renderNonPpn();}catch(e){}
+  try{renderBank();renderNonPpn();renderKasBanks();}catch(e){}
   if(typeof _pettyItems!=='undefined'&&!_pettyItems.length){try{renderPettyItems();}catch(e){}}
   const reports=S.kas.filter(k=>k.hub===S.hub);
   const tb=document.getElementById('kas-tb');

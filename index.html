@@ -260,7 +260,7 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
       <button class="btn btn-ghost btn-sm" onclick="exportObs()">⬇️ Excel</button> <button class="btn btn-purple btn-lg" id="btn-new-ob" onclick="openNewOb()">+ New Sale</button>
     </div>
   </div>
-  <div id="dash-kasalert"></div>
+  <div id="dash-whalert"></div><div id="dash-kasalert"></div>
   <div class="g5 mb10" id="kpi"></div>
   <div id="dash-position" class="mb10"></div>
   <div class="g2">
@@ -413,6 +413,19 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
   <div style="font-size:15px;font-weight:700;margin-bottom:4px;">Warehouse — Containers & Operations</div>
   <div class="mut" style="font-size:11px;margin-bottom:12px;">Hub: <b id="wh-hub"></b>. Manage tanks/IBC/cans, receiving, quality split, daily opening stock, and ampas.</div>
   <div class="g4 mb10" id="wh-dash"></div><div class="g4 mb10" id="wh-dash2"></div>
+  <div id="wh-stokalert"></div>
+  <div class="card mb10">
+    <div class="card-t" style="display:flex;justify-content:space-between;align-items:center;">📦 Report Daily Inventory Stock — per Tanki <button class="btn btn-ghost btn-sm" onclick="exportDailyStock()">⬇️ Excel</button></div>
+    <div class="mut" style="font-size:10px;margin:4px 0 8px;">Sounding fisik WAJIB diisi tiap pagi lewat form Opening Stock di bawah. Selisih = fisik − buku.</div>
+    <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Tanki</th><th class="r">Masuk (kg)</th><th class="r">Keluar (kg)</th><th class="r">Saldo Buku</th><th class="r">Sounding Pagi</th><th class="r">Selisih</th><th>Lapor Terakhir</th></tr></thead><tbody id="ds-tb"></tbody></table></div>
+  </div>
+  <div class="card mb10">
+    <div class="card-t" style="display:flex;justify-content:space-between;align-items:center;">🚚 Tracking Discharge — Bongkar <button class="btn btn-ghost btn-sm" onclick="exportDischarge()">⬇️ Excel</button></div>
+    <div class="sect-t mt10" style="border:none;">⏳ Belum Dibongkar / Undischarged</div>
+    <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Supplier</th><th>Tgl Terima</th><th class="r">Volume (kg)</th><th class="r">Umur (hari)</th><th>Tahap</th></tr></thead><tbody id="td-belum"></tbody></table></div>
+    <div class="sect-t mt10" style="border:none;">✅ Sudah Dibongkar (bulan ini)</div>
+    <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Supplier</th><th>Tgl Terima</th><th>Tgl Bongkar</th><th class="r">Volume (kg)</th><th>Tanki</th></tr></thead><tbody id="td-sudah"></tbody></table></div>
+  </div>
   <div class="wh-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
     <button class="btn btn-sm wh-st" data-w="cont" onclick="whSub('cont')">🛢️ Containers</button>
     <button class="btn btn-sm btn-ghost wh-st" data-w="recv" onclick="whSub('recv')">📥 Receiving</button>
@@ -1072,6 +1085,7 @@ function renderDash(){
   updBadges();
   document.getElementById('dash-date').textContent=new Date().toLocaleDateString('en-US',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'  -  Hub: '+S.hub;
   const tk=S.kas.filter(k=>k.tgl===td()&&k.hub===S.hub);
+  (function(){const el=document.getElementById('dash-whalert');if(!el)return;const today=td();const conts=(S.containers||[]).filter(c=>c.hub===S.hub);const blm=conts.filter(function(c){const rows=(S.opening||[]).filter(o=>o.hub===S.hub&&(o.container_code||'')===c.code&&o.tgl===today);return !rows.length;}).length;el.innerHTML=(conts.length&&blm&&(can('Gudang')||can('Admin')))?'<div class="alert a-warn mb10">📦 Stok pagi per tanki belum lengkap: '+blm+' tanki. <button class="btn btn-yellow btn-sm" onclick="gotoTab(\'warehouse\')">Isi Sekarang</button></div>':'';})();
   document.getElementById('dash-kasalert').innerHTML=(!tk.length&&(can('Finance')))?'<div class="alert a-warn mb10">⚠️ Laporan pagi belum diisi (kas + saldo 3 rekening bank). <button class="btn btn-yellow btn-sm" onclick="gotoTab(\'kas\')">Enter Now</button></div>':'';
   const ibAct=S.ibs.filter(t=>t.stage!=='done'&&t.stage!=='ditahan'&&t.hub===S.hub).length;
   const obAct=S.obs.filter(t=>t.stage!=='done'&&t.hub===S.hub).length;
@@ -1869,6 +1883,75 @@ function renderNonPpn(){
     (rows.length?rows.map(function(r){return '<tr'+(r.mix?' style="background:rgba(239,68,68,.08);"':'')+' onclick="openIb(\''+r.id+'\')" style="cursor:pointer;"><td class="mono" style="font-size:9px;">'+crmEsc(r.acc)+'</td><td class="mono" style="font-size:10px;">'+r.tgl+'</td><td class="mono" style="font-size:9px;">'+r.id+'</td><td>'+crmEsc(r.sup)+'</td><td class="r mono">'+fR(r.amt)+'</td><td>'+(r.mix?'<span class="badge b-red">'+r.ppn+' ⚠️</span>':'<span class="badge b-gray">non</span>')+'</td></tr>';}).join(''):'<tr><td colspan="6" style="text-align:center;padding:12px;color:var(--text3);">Belum ada pembayaran via rekening non-PPN.</td></tr>')+
     '</tbody></table></div>'+
     '<button class="btn btn-ghost btn-sm mt10" onclick="_xlsExport(window._npRows||[],[\'Rekening\',\'Tanggal\',\'Transaksi\',\'Supplier\',\'Jumlah\',\'PPN\'],[\'acc\',\'tgl\',\'id\',\'sup\',\'amt\',\'ppn\'],\'RekonNonPPN_\'+td()+\'.xlsx\')">⬇️ Excel</button>';
+}
+
+
+// ---- REPORT DAILY STOCK PER TANKI + TRACKING DISCHARGE ----
+function tankIn(code){return (S.ibs||[]).filter(t=>t.hub===S.hub&&_ibReached(t,'bongkar')&&(t.lokasi_simpan||'')===code).reduce((a,t)=>a+pn(t.netto_kg),0);}
+function tankOut(code){return (S.obs||[]).filter(t=>t.hub===S.hub&&(t.container_code||'')===code&&pn(t.vol_kg)>0&&(t.stage==='done'||_obIdx(t.stage)>_obIdx('muat'))).reduce((a,t)=>a+pn(t.vol_kg),0);}
+function tankLastOpname(code){
+  const rows=(S.opening||[]).filter(o=>o.hub===S.hub&&(o.container_code||'')===code);
+  rows.sort((a,b)=>String(b.tgl||'').localeCompare(String(a.tgl||'')));
+  return rows[0]||null;
+}
+let _dsRows=[];
+function renderDailyStock(){
+  const tb=document.getElementById('ds-tb');if(!tb)return;
+  const conts=(S.containers||[]).filter(c=>c.hub===S.hub);
+  const today=td();
+  _dsRows=[];let belum=0;
+  tb.innerHTML=conts.length?conts.map(function(c){
+    const masuk=Math.round(tankIn(c.code));
+    const keluar=Math.round(tankOut(c.code));
+    const buku=masuk-keluar;
+    const op=tankLastOpname(c.code);
+    const isToday=op&&op.tgl===today;
+    if(!isToday)belum++;
+    const snd=op?pn(op.sounding_kg):null;
+    const sel=(op&&snd!=null)?Math.round(snd-buku):null;
+    _dsRows.push({tanki:c.code,masuk:masuk,keluar:keluar,buku:buku,sounding:snd!=null?Math.round(snd):'',selisih:sel!=null?sel:'',lapor:op?op.tgl:'-'});
+    return '<tr><td style="font-weight:600;">'+crmEsc(c.code)+'</td><td class="r mono">'+f(masuk)+'</td><td class="r mono">'+f(keluar)+'</td><td class="r mono" style="font-weight:700;">'+f(buku)+'</td><td class="r mono">'+(snd!=null?f(Math.round(snd)):'-')+'</td><td class="r mono" style="color:'+(sel!=null&&sel<0?'var(--red)':sel!=null&&sel>0?'var(--yellow)':'inherit')+';font-weight:700;">'+(sel!=null?f(sel):'-')+'</td><td style="font-size:10px;">'+(op?(isToday?'<span class="badge b-green">✅ hari ini</span>':'<span class="badge b-yellow">'+op.tgl+'</span>'):'<span class="badge b-red">❌ belum pernah</span>')+'</td></tr>';
+  }).join(''):'<tr><td colspan="7" style="text-align:center;padding:14px;color:var(--text3);">Belum ada tanki/kontainer terdaftar — tambah di bagian Containers di bawah.</td></tr>';
+  const al=document.getElementById('wh-stokalert');
+  if(al)al.innerHTML=(conts.length&&belum)?'<div class="alert a-warn mb10">⚠️ Stok pagi WAJIB: '+belum+' dari '+conts.length+' tanki belum dilaporkan hari ini. Isi lewat form Opening Stock (buku vs sounding fisik).</div>':'';
+}
+function exportDailyStock(){renderDailyStock();_xlsExport(_dsRows,['Tanki','Masuk (kg)','Keluar (kg)','Saldo Buku','Sounding Pagi','Selisih','Lapor Terakhir'],['tanki','masuk','keluar','buku','sounding','selisih','lapor'],'DailyStock_'+S.hub+'_'+td()+'.xlsx');}
+
+function _bongkarDate(t){
+  const lg=(t.log||[]).find(l=>l.s==='bongkar');
+  return lg?String(lg.at||'').slice(0,10):(t.stage==='done'?String(t.paid_at||'').slice(0,10):'-');
+}
+let _tdBelum=[],_tdSudah=[];
+function renderTrackDischarge(){
+  const b=document.getElementById('td-belum');if(!b)return;
+  const now=new Date();
+  const belum=(S.ibs||[]).filter(t=>t.hub===S.hub&&['sampel','timbang','bongkar'].indexOf(t.stage)>=0);
+  belum.sort((a,b2)=>String(a.tanggal||'').localeCompare(String(b2.tanggal||'')));
+  _tdBelum=belum.map(function(t){
+    const umur=Math.max(0,Math.round((now-new Date(t.tanggal))/86400000));
+    return {sup:t.supplier||'-',tgl:t.tanggal,vol:Math.round(pn(t.netto_kg)||pn(t.net_timbang)||pn(t.rencana_beli)),umur:umur,tahap:t.stage,id:t.id};
+  });
+  b.innerHTML=_tdBelum.length?_tdBelum.map(function(r){
+    return '<tr style="cursor:pointer;'+(r.umur>=2?'background:rgba(239,68,68,.07);':'')+'" onclick="openIb(\''+r.id+'\')"><td style="font-weight:600;">'+crmEsc(r.sup)+'</td><td class="mono" style="font-size:10px;">'+r.tgl+'</td><td class="r mono">'+f(r.vol)+'</td><td class="r mono" style="color:'+(r.umur>=2?'var(--red)':'inherit')+';">'+r.umur+'</td><td><span class="badge b-yellow">'+r.tahap+'</span></td></tr>';
+  }).join(''):'<tr><td colspan="5" style="text-align:center;padding:12px;color:var(--text3);">Semua barang yang diterima sudah dibongkar. ✅</td></tr>';
+  const mm=new Date().toISOString().slice(0,7);
+  const sudah=(S.ibs||[]).filter(t=>t.hub===S.hub&&_ibReached(t,'upload')&&String(t.tanggal||'').slice(0,7)===mm);
+  sudah.sort((a,b2)=>String(b2.tanggal||'').localeCompare(String(a.tanggal||'')));
+  _tdSudah=sudah.map(t=>({sup:t.supplier||'-',tgl:t.tanggal,bongkar:_bongkarDate(t),vol:Math.round(pn(t.netto_kg)),tanki:t.lokasi_simpan||'-',id:t.id}));
+  const sEl=document.getElementById('td-sudah');
+  sEl.innerHTML=_tdSudah.length?_tdSudah.map(function(r){
+    return '<tr style="cursor:pointer;" onclick="openIb(\''+r.id+'\')"><td>'+crmEsc(r.sup)+'</td><td class="mono" style="font-size:10px;">'+r.tgl+'</td><td class="mono" style="font-size:10px;">'+r.bongkar+'</td><td class="r mono">'+f(r.vol)+'</td><td>'+crmEsc(r.tanki)+'</td></tr>';
+  }).join(''):'<tr><td colspan="5" style="text-align:center;padding:12px;color:var(--text3);">Belum ada bongkar bulan ini.</td></tr>';
+}
+function exportDischarge(){
+  renderTrackDischarge();
+  if(!window.XLSX){toast('Engine Excel belum termuat','err');return;}
+  const wb=XLSX.utils.book_new();
+  const w1=XLSX.utils.aoa_to_sheet([['Supplier','Tgl Terima','Volume (kg)','Umur (hari)','Tahap']].concat(_tdBelum.map(r=>[r.sup,r.tgl,r.vol,r.umur,r.tahap])));
+  const w2=XLSX.utils.aoa_to_sheet([['Supplier','Tgl Terima','Tgl Bongkar','Volume (kg)','Tanki']].concat(_tdSudah.map(r=>[r.sup,r.tgl,r.bongkar,r.vol,r.tanki])));
+  XLSX.utils.book_append_sheet(wb,w1,'Belum Dibongkar');
+  XLSX.utils.book_append_sheet(wb,w2,'Sudah Dibongkar');
+  XLSX.writeFile(wb,'TrackingDischarge_'+S.hub+'_'+td()+'.xlsx');toast('⬇️ Tracking discharge terunduh');
 }
 
 // ---- ⑬ KARTU STOK PER KATEGORI ----
@@ -3685,7 +3768,7 @@ async function submitReturn(){
 // ---- RENDER WAREHOUSE ----
 function renderWarehouse(){
   const hub=S.hub;
-  try{renderWhDash();}catch(e){}
+  try{renderWhDash();renderDailyStock();renderTrackDischarge();}catch(e){}
   const wh=document.getElementById('wh-hub');if(wh)wh.textContent=hub;
   // dates default
   ['r-tgl','o-tgl','am-tgl','rt-tgl'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.value)e.value=td();});

@@ -3234,18 +3234,18 @@ function bPO(t){
   const qty=pn(_ov(t,'PO','qty',pn(t.netto_kg)||pn(t.rencana_beli)));const price=pn(_ov(t,'PO','price',pn(t.harga_aktual)||pn(t.est_harga)));
   const supplier=_ov(t,'PO','supplier',t.supplier||'-');
   const spec=_ov(t,'PO','spec','FFA max 4% MnI max 1.5%');
-  const terms=_ov(t,'PO','terms',t.due_date||t.terms||'-');
+  const terms=_ov(t,'PO','terms',t.due_date||'-');
   const payterm=_ov(t,'PO','payterm',t.met_bayar||'100% After Weight');
-  const sub=qty*price,tax=sub*0.11,tot=sub+tax;
+  const _jrg=(t.basis_harga==='jrg');const _jq=pn(t.jrg_qty_act)||pn(t.jrg_qty_est);const _jp=pn(t.jrg_price);const sub=_jrg&&_jq&&_jp?Math.round(_jq*_jp):qty*price;const _mode=t.ppn_mode||'non';const tax=_mode==='exclude'?Math.round(sub*0.11):(_mode==='include'?Math.round(sub*11/111):0);const tot=_mode==='exclude'?sub+tax:sub;
   const edited=t.doc_edits&&t.doc_edits.PO;
   return (edited?'<div style="font-size:9px;color:#0a7d3c;text-align:right;margin-bottom:-6px;">✓ GM-approved edit · '+(t.doc_edits.PO.approved_by||'')+'</div>':'')+
   _meta([['Date',_today()],['PO No.',docNo('PO-SUP',t.id)]])+
   '<div class="two"><div class="box"><div class="lbl">Supplier</div><div><b>'+supplier+'</b></div><div class="mut">'+_loc(t)+'</div><div class="mut">'+(t.hp||'')+'</div></div>'+
   '<div class="box"><div class="lbl">Ship To</div><div><b>Hijau Warehouse</b></div><div class="mut">'+HSB_CO.short+', '+(t.hub||'')+'</div></div></div>'+
-  '<div class="box"><div class="two"><div><div class="lbl">Delivery / Due Date</div>'+terms+'</div><div><div class="lbl">Payment Term</div>'+payterm+'</div><div><div class="lbl">Incoterm</div>Franco</div></div></div>'+
+  '<div class="box"><div class="two"><div><div class="lbl">Delivery / Due Date</div>'+terms+'</div><div><div class="lbl">Payment Term</div>'+payterm+'</div><div><div class="lbl">Incoterm</div>'+(t.incoterm||'Franco')+'</div></div></div>'+
   '<table><thead><tr><th>Item</th><th>Specification</th><th class="r">Quantity (Kg)</th><th class="r">Unit (IDR)</th><th class="r">Line Total</th></tr></thead><tbody>'+
-  '<tr><td>UCO '+(t.hub||'')+'</td><td>'+spec+'</td><td class="r">'+f(qty)+'</td><td class="r">'+f(price)+'</td><td class="r">'+f(sub)+'</td></tr></tbody>'+
-  '<tfoot><tr><td colspan="4" class="r">SUBTOTAL</td><td class="r">'+f(sub)+'</td></tr><tr><td colspan="4" class="r">TAX (11%)</td><td class="r">'+f(tax)+'</td></tr><tr><td colspan="4" class="r tot">TOTAL</td><td class="r tot">'+fR(tot)+'</td></tr></tfoot></table>'+
+  '<tr><td>UCO '+(t.hub||'')+(_jrg?' — '+f(_jq)+' jerigen (est. 16,5 kg/jrg)':'')+'</td><td>'+spec+'</td><td class="r">'+f(qty)+'</td><td class="r">'+(_jrg?f(_jp)+'/jrg':f(price))+'</td><td class="r">'+f(sub)+'</td></tr></tbody>'+
+  '<tfoot><tr><td colspan="4" class="r">SUBTOTAL</td><td class="r">'+f(sub)+'</td></tr>'+(_mode==='exclude'?'<tr><td colspan="4" class="r">PPN 11% (exclude)</td><td class="r">'+f(tax)+'</td></tr>':_mode==='include'?'<tr><td colspan="4" class="r">PPN include (11/111 — info)</td><td class="r">'+f(tax)+'</td></tr>':'')+'<tr><td colspan="4" class="r tot">TOTAL'+(_mode==='non'?' (Non-PPN)':'')+'</td><td class="r tot">'+fR(tot)+'</td></tr></tfoot></table>'+((pn(t.fee_amt)+pn(t.logistik_amt)+pn(t.other_amt))>0?'<div class="mut" style="font-size:9px;margin:4px 0;">Biaya internal HSB (tidak ditagihkan ke supplier): Fee '+f(pn(t.fee_amt))+' · Logistik '+f(pn(t.logistik_amt))+' · Lain '+f(pn(t.other_amt))+'</div>':'')+
   '<div class="ins"><b>SPECIAL INSTRUCTIONS</b><br>7 days maximum delivery/collection past due.<br>FFA off-spec: penalty on unit price 50 per 0.5%. MnI off-spec: penalty on unit price 50 per 0.5%.<br>&gt;2% FFA off-spec: cargo reject. &gt;1% MnI off-spec: cargo reject.</div>'+
   _sig([['AUTHORIZED','Mufni F Adaillah','Procurement Manager'],['APPROVED','Martha Nita F S','General Manager'],['SUPPLIER',supplier,'']]);
 }

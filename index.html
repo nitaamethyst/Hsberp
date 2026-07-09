@@ -4316,6 +4316,30 @@ setInterval(function(){
   if(document.visibilityState==='visible'&&S.uid&&Date.now()-_rtLast>90000){_rtResume();}
 },30000);
 
+
+// ---- AUTO-UPDATE CHECK: banner "versi baru" utk semua user saat file di GitHub berubah ----
+let _appEtag=null;
+async function _verCheck(){
+  try{
+    const r=await fetch(location.href.split('#')[0].split('?')[0],{method:'HEAD',cache:'no-store'});
+    const e=r.headers.get('etag')||r.headers.get('last-modified');
+    if(!e)return;
+    if(_appEtag===null){_appEtag=e;return;}
+    if(e!==_appEtag){_appEtag=e;_showUpdBanner();}
+  }catch(e){}
+}
+function _showUpdBanner(){
+  if(document.getElementById('upd-banner'))return;
+  const d=document.createElement('div');
+  d.id='upd-banner';
+  d.style.cssText='position:fixed;bottom:14px;left:14px;right:14px;z-index:99999;background:var(--green,#16A75C);color:#06130b;padding:12px 14px;border-radius:12px;font-weight:700;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.45);';
+  d.innerHTML='🆕 Versi baru ERP sudah terpasang <button onclick="try{draftSave()}catch(e){};location.reload()" style="background:#06130b;color:#fff;border:0;border-radius:8px;padding:9px 16px;font-weight:700;white-space:nowrap;">Muat Ulang</button>';
+  document.body.appendChild(d);
+}
+setInterval(_verCheck,5*60*1000);
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')_verCheck();});
+_verCheck();
+
 // draft autosave listener
 (function(){var mb=document.getElementById('m-body');if(mb){mb.addEventListener('input',draftSave);mb.addEventListener('change',draftSave);}})();
 </script>

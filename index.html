@@ -537,7 +537,7 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
     <div class="card-t" style="display:flex;justify-content:space-between;align-items:center;">🚚 Tracking Discharge — Bongkar <button class="btn btn-ghost btn-sm" onclick="exportDischarge()">⬇️ Excel</button></div>
     <div class="sect-t mt10" style="border:none;">⏳ Belum Dibongkar / Undischarged</div>
     <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Supplier</th><th>Tgl Terima</th><th class="r">Volume (kg)</th><th class="r">Umur (hari)</th><th>Tahap</th></tr></thead><tbody id="td-belum"></tbody></table></div>
-    <div class="sect-t mt10" style="border:none;">✅ Sudah Dibongkar (bulan ini)</div>
+    <div class="sect-t mt10" style="border:none;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;"><span>✅ Sudah Dibongkar <span id="td-info" style="font-weight:400;color:var(--text3);font-size:10px;"></span></span><span style="display:flex;gap:6px;align-items:center;font-weight:400;"><input type="date" id="td-tgl" class="sinp" style="width:auto;font-size:11px;" onchange="document.getElementById('td-all').checked=false;renderTrackDischarge()"/><label style="font-size:10px;display:flex;align-items:center;gap:3px;"><input type="checkbox" id="td-all" onchange="renderTrackDischarge()"/> sebulan</label></span></div>
     <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Supplier</th><th>Tgl Terima</th><th>Tgl Bongkar</th><th class="r">Volume (kg)</th><th>Tanki</th></tr></thead><tbody id="td-sudah"></tbody></table></div>
   </div>
 <div id="tab-reports" style="display:none">
@@ -2025,10 +2025,10 @@ function renderTrackDischarge(){
   b.innerHTML=_tdBelum.length?_tdBelum.map(function(r){
     return '<tr style="cursor:pointer;'+(r.umur>=2?'background:rgba(212,42,79,.08);':'')+'" onclick="openIb(\''+r.id+'\')"><td style="font-weight:600;">'+crmEsc(r.sup)+'</td><td class="mono" style="font-size:10px;">'+r.tgl+'</td><td class="r mono">'+f(r.vol)+'</td><td class="r mono" style="color:'+(r.umur>=2?'var(--red)':'inherit')+';">'+r.umur+'</td><td><span class="badge b-yellow">'+r.tahap+'</span></td></tr>';
   }).join(''):'<tr><td colspan="5" style="text-align:center;padding:12px;color:var(--text3);">Semua barang yang diterima sudah dibongkar. ✅</td></tr>';
-  const mm=new Date().toISOString().slice(0,7);
-  const sudah=(S.ibs||[]).filter(t=>t.hub===S.hub&&_ibReached(t,'upload')&&String(t.tanggal||'').slice(0,7)===mm);
+  const _tgEl=document.getElementById('td-tgl');if(_tgEl&&!_tgEl.value)_tgEl.value=td();const _all=document.getElementById('td-all');const _pakaiBulan=_all&&_all.checked;const _tglPilih=(_tgEl&&_tgEl.value)||td();const mm=_tglPilih.slice(0,7);const sudah=(S.ibs||[]).filter(function(t){if(t.hub!==S.hub||!_ibReached(t,'upload'))return false;const bd=_bongkarDate(t);const ref=(bd&&bd!=='-')?bd:String(t.tanggal||'');return _pakaiBulan?ref.slice(0,7)===mm:ref===_tglPilih;});
   sudah.sort((a,b2)=>String(b2.tanggal||'').localeCompare(String(a.tanggal||'')));
   _tdSudah=sudah.map(t=>({sup:t.supplier||'-',tgl:t.tanggal,bongkar:_bongkarDate(t),vol:Math.round(pn(t.netto_kg)),tanki:t.lokasi_simpan||'-',id:t.id}));
+  const _inf=document.getElementById('td-info');if(_inf){const _tot=_tdSudah.reduce(function(a,r){return a+pn(r.vol);},0);_inf.textContent='('+_tdSudah.length+' bongkar · '+f(Math.round(_tot))+' kg · '+(_pakaiBulan?'bulan '+mm:_tglPilih)+')';}
   const sEl=document.getElementById('td-sudah');
   sEl.innerHTML=_tdSudah.length?_tdSudah.map(function(r){
     return '<tr style="cursor:pointer;" onclick="openIb(\''+r.id+'\')"><td>'+crmEsc(r.sup)+'</td><td class="mono" style="font-size:10px;">'+r.tgl+'</td><td class="mono" style="font-size:10px;">'+r.bongkar+'</td><td class="r mono">'+f(r.vol)+'</td><td>'+crmEsc(r.tanki)+'</td></tr>';

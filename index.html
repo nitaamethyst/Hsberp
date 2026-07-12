@@ -12,12 +12,12 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@300;400;500;600;700&display=swap');
 :root{
-  --bg:#090e18;--bg2:#0f1623;--bg3:#161e2e;--bg4:#1e2a3f;
-  --border:#1e2a3f;--border2:#2a3a56;
-  --text:#dce8f5;--text2:#7a93b4;--text3:#4a637f;
-  --green:#00d97e;--gd:#003d22;--yellow:#f0b429;--yd:#3d2c00;
-  --red:#f5365c;--rd:#3d0013;--blue:#2d8cf0;--bd:#082040;
-  --purple:#b37feb;--pd:#1f0d40;--cyan:#00c9d9;--cd:#003d42;--orange:#fd7e14;--od:#3d1e00;
+  --bg:#F2F7FB;--bg2:#FFFFFF;--bg3:#E9F1F8;--bg4:#DCE8F2;
+  --border:#D6E2ED;--border2:#B9CCDE;
+  --text:#16273C;--text2:#46617E;--text3:#7A90A8;
+  --green:#0B9E64;--gd:#DCF5EA;--yellow:#A87716;--yd:#FBF0D7;
+  --red:#D42A4F;--rd:#FCE3E9;--blue:#1B6FD0;--bd:#DFEBFB;
+  --purple:#7A4BD6;--pd:#EFE7FB;--cyan:#0A87A0;--cd:#DCF3F7;--orange:#D6691C;--od:#FBE7D8;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:Sora,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:13px;}
@@ -412,20 +412,21 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
 <div id="tab-warehouse" style="display:none">
   <div style="font-size:15px;font-weight:700;margin-bottom:4px;">Warehouse — Containers & Operations</div>
   <div class="mut" style="font-size:11px;margin-bottom:12px;">Hub: <b id="wh-hub"></b>. Manage tanks/IBC/cans, receiving, quality split, daily opening stock, and ampas.</div>
-  <div class="g4 mb10" id="wh-dash"></div><div class="g4 mb10" id="wh-dash2"></div>
-  <div id="wh-stokalert"></div>
+    <div id="wh-stokalert"></div>
+  <div class="card mb10">
+    <div class="card-t" style="display:flex;justify-content:space-between;align-items:center;">📋 Opening Stock Pagi — WAJIB per Tanki &amp; Kategori <span class="badge b-yellow" id="osp-status"></span></div>
+    <div class="mut" style="font-size:10px;margin:4px 0 8px;">Isi manual setiap pagi: stok buku tiap tanki + hasil lab, dan saldo kategori Semi / Ampas / Return. Fisik boleh dikosongkan (= buku).</div>
+    <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Tanki / Kategori</th><th class="r">Stok Buku (kg)*</th><th class="r">Fisik/Sounding (kg)</th><th>Hasil Lab (FFA / M&amp;I)</th></tr></thead><tbody id="osp-tb"></tbody></table></div>
+    <button class="btn btn-green mt10" style="width:100%;" onclick="saveOsPagi()">💾 Simpan Opening Stock Pagi Ini</button>
+  </div>
   <div class="card mb10">
     <div class="card-t" style="display:flex;justify-content:space-between;align-items:center;">📦 Report Daily Inventory Stock — per Tanki <button class="btn btn-ghost btn-sm" onclick="exportDailyStock()">⬇️ Excel</button></div>
     <div class="mut" style="font-size:10px;margin:4px 0 8px;">Sounding fisik WAJIB diisi tiap pagi lewat form Opening Stock di bawah. Selisih = fisik − buku.</div>
-    <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Tanki</th><th class="r">Masuk (kg)</th><th class="r">Keluar (kg)</th><th class="r">Saldo Buku</th><th class="r">Sounding Pagi</th><th class="r">Selisih</th><th>Lapor Terakhir</th></tr></thead><tbody id="ds-tb"></tbody></table></div>
+    <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Tanki</th><th class="r">Masuk (kg)</th><th class="r">Keluar (kg)</th><th class="r">Saldo Buku</th><th class="r">Sounding Pagi</th><th class="r">Selisih</th><th>Lab</th><th>Lapor Terakhir</th></tr></thead><tbody id="ds-tb"></tbody></table></div>
   </div>
-  <div class="card mb10">
-    <div class="card-t" style="display:flex;justify-content:space-between;align-items:center;">🚚 Tracking Discharge — Bongkar <button class="btn btn-ghost btn-sm" onclick="exportDischarge()">⬇️ Excel</button></div>
-    <div class="sect-t mt10" style="border:none;">⏳ Belum Dibongkar / Undischarged</div>
-    <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Supplier</th><th>Tgl Terima</th><th class="r">Volume (kg)</th><th class="r">Umur (hari)</th><th>Tahap</th></tr></thead><tbody id="td-belum"></tbody></table></div>
-    <div class="sect-t mt10" style="border:none;">✅ Sudah Dibongkar (bulan ini)</div>
-    <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Supplier</th><th>Tgl Terima</th><th>Tgl Bongkar</th><th class="r">Volume (kg)</th><th>Tanki</th></tr></thead><tbody id="td-sudah"></tbody></table></div>
-  </div>
+
+  <div class="g4 mb10" id="wh-dash"></div><div class="g4 mb10" id="wh-dash2"></div>
+  
   <div class="wh-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
     <button class="btn btn-sm wh-st" data-w="cont" onclick="whSub('cont')">🛢️ Containers</button>
     <button class="btn btn-sm btn-ghost wh-st" data-w="recv" onclick="whSub('recv')">📥 Receiving</button>
@@ -502,7 +503,7 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
       </div>
       <div class="frow">
         <div class="fg"><label>Qty (Kg)<span class="req">*</span></label><input type="number" id="am-qty" placeholder="0"/></div>
-        <div class="fg"><label>Container / Position</label><select id="am-cont"></select></div>
+        <div class="fg"><label>Container / Position (bebas tulis)</label><input type="text" id="am-cont" list="dl-amp-loc" placeholder="mis. Kaleng, IBC-3, Tangki Ampas"/><datalist id="dl-amp-loc"><option>Kaleng</option><option>IBC</option><option>Tangki</option><option>Drum</option><option>Jerigen</option></datalist></div>
         <div class="fg" style="justify-content:flex-end;"><label>&nbsp;</label><button class="btn btn-green" onclick="submitAmpas()">Save</button></div>
       </div>
     </div>
@@ -517,6 +518,7 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
       <div class="frow mt10">
         <div class="fg"><label>Date</label><input type="date" id="rt-tgl"/></div>
         <div class="fg"><label>From Sale (optional)</label><select id="rt-ob"><option value="">-- none --</option></select></div>
+        <div class="fg"><label>Nama Buyer (manual)</label><input type="text" id="rt-buyer" list="dl-crm-buy2" placeholder="ketik nama buyer..."/><datalist id="dl-crm-buy2"></datalist></div>
       </div>
       <div class="frow">
         <div class="fg"><label>Return Qty (Kg)<span class="req">*</span></label><input type="number" id="rt-qty" placeholder="0"/></div>
@@ -531,7 +533,13 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
     <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Date</th><th class="r">Qty (Kg)</th><th>Spec</th><th class="r">HPP (Rp)</th><th class="r">Logistics</th><th>FIFO Source</th><th>By</th></tr></thead><tbody id="return-tb"></tbody></table></div>
   </div>
 </div>
-
+  <div class="card mb10">
+    <div class="card-t" style="display:flex;justify-content:space-between;align-items:center;">🚚 Tracking Discharge — Bongkar <button class="btn btn-ghost btn-sm" onclick="exportDischarge()">⬇️ Excel</button></div>
+    <div class="sect-t mt10" style="border:none;">⏳ Belum Dibongkar / Undischarged</div>
+    <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Supplier</th><th>Tgl Terima</th><th class="r">Volume (kg)</th><th class="r">Umur (hari)</th><th>Tahap</th></tr></thead><tbody id="td-belum"></tbody></table></div>
+    <div class="sect-t mt10" style="border:none;">✅ Sudah Dibongkar (bulan ini)</div>
+    <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Supplier</th><th>Tgl Terima</th><th>Tgl Bongkar</th><th class="r">Volume (kg)</th><th>Tanki</th></tr></thead><tbody id="td-sudah"></tbody></table></div>
+  </div>
 <div id="tab-reports" style="display:none">
   <div style="font-size:15px;font-weight:700;margin-bottom:4px;">Monthly Reports</div>
   <div class="frow mt10" style="margin-bottom:12px;">
@@ -1085,7 +1093,7 @@ function renderDash(){
   updBadges();
   document.getElementById('dash-date').textContent=new Date().toLocaleDateString('en-US',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'  -  Hub: '+S.hub;
   const tk=S.kas.filter(k=>k.tgl===td()&&k.hub===S.hub);
-  (function(){const el=document.getElementById('dash-whalert');if(!el)return;const today=td();const conts=(S.containers||[]).filter(c=>c.hub===S.hub);const blm=conts.filter(function(c){const rows=(S.opening||[]).filter(o=>o.hub===S.hub&&(o.container_code||'')===c.code&&o.tgl===today);return !rows.length;}).length;el.innerHTML=(conts.length&&blm&&(can('Gudang')||can('Admin')))?'<div class="alert a-warn mb10">📦 Stok pagi per tanki belum lengkap: '+blm+' tanki. <button class="btn btn-yellow btn-sm" onclick="gotoTab(\'warehouse\')">Isi Sekarang</button></div>':'';})();
+  (function(){const el=document.getElementById('dash-whalert');if(!el)return;const today=td();const conts=(S.containers||[]).filter(c=>c.hub===S.hub);let blm=conts.filter(function(c){const rows=(S.opening||[]).filter(o=>o.hub===S.hub&&(o.container_code||'')===c.code&&o.tgl===today);return !rows.length;}).length;if(conts.length){['Semi','Ampas','Return Reject Buyer'].forEach(function(k){const r2=(S.opening||[]).filter(o=>o.hub===S.hub&&(o.container_code||'')==='KAT:'+k&&o.tgl===today);if(!r2.length)blm++;});}el.innerHTML=(conts.length&&blm&&(can('Gudang')||can('Admin')))?'<div class="alert a-warn mb10">📦 Stok pagi per tanki belum lengkap: '+blm+' tanki. <button class="btn btn-yellow btn-sm" onclick="gotoTab(\'warehouse\')">Isi Sekarang</button></div>':'';})();
   document.getElementById('dash-kasalert').innerHTML=(!tk.length&&(can('Finance')))?'<div class="alert a-warn mb10">⚠️ Laporan pagi belum diisi (kas + saldo 3 rekening bank). <button class="btn btn-yellow btn-sm" onclick="gotoTab(\'kas\')">Enter Now</button></div>':'';
   const ibAct=S.ibs.filter(t=>t.stage!=='done'&&t.stage!=='ditahan'&&t.hub===S.hub).length;
   const obAct=S.obs.filter(t=>t.stage!=='done'&&t.hub===S.hub).length;
@@ -1130,7 +1138,7 @@ function renderPosition(){
    card('🔴 Purchases Unpaid',fR(unpaidBuy),'var(--red)','to suppliers')+
    card('🟢 Sales Unsettled',fR(unsettledSell),'var(--green)','from buyers')+
    '</div>'+
-   (can('Finance')?'<div class="card mt10" style="border-color:'+(netPL>=0?'var(--green)':'var(--red)')+';background:linear-gradient(135deg,var(--bg2),'+(netPL>=0?'rgba(16,185,129,.08)':'rgba(239,68,68,.08)')+');"><div style="display:flex;justify-content:space-between;align-items:center;"><div><div class="card-t">📈 P&L This Month (MTD)</div><div class="card-s">FIFO COGS − losses − var.cost − expenses</div></div><div class="mono" style="font-size:20px;font-weight:800;color:'+(netPL>=0?'var(--green)':'var(--red)')+';">'+fR(netPL)+'</div></div></div>':'')+_prepayAlertHtml();
+   (can('Finance')?'<div class="card mt10" style="border-color:'+(netPL>=0?'var(--green)':'var(--red)')+';background:linear-gradient(135deg,var(--bg2),'+(netPL>=0?'rgba(16,185,129,.08)':'rgba(212,42,79,.09)')+');"><div style="display:flex;justify-content:space-between;align-items:center;"><div><div class="card-t">📈 P&L This Month (MTD)</div><div class="card-s">FIFO COGS − losses − var.cost − expenses</div></div><div class="mono" style="font-size:20px;font-weight:800;color:'+(netPL>=0?'var(--green)':'var(--red)')+';">'+fR(netPL)+'</div></div></div>':'')+_prepayAlertHtml();
 }
 function _prepayAlertHtml(){
   let hanging=[];try{hanging=prepayHanging();}catch(e){}
@@ -1279,6 +1287,7 @@ function renderIbUI(t){
   const curIdx=ibI(t.stage);const returIdx=ibI(IB_RETUR_FROM);
   let leftBtns='<button class="btn btn-blue btn-sm" onclick="showDocs(\''+t.id+'\')">📄 Docs</button> ';
   if(curIdx>=returIdx){leftBtns+='<button class="btn btn-orange btn-sm" onclick="openReturIb(\''+t.id+'\')">↩ Return / Back</button>';}
+  if(!t.paid&&(can('Purchase-Beli')||can('Admin'))){leftBtns+=' <button class="btn btn-ghost btn-sm" onclick="openEditIb(\''+t.id+'\')">✏️ Edit</button>';}
   if(can('Admin')){leftBtns+=' <button class="btn btn-red btn-sm" onclick="delIbTxn(\''+t.id+'\')">🗑 Delete</button>';}
   document.getElementById('m-foot-l').innerHTML=leftBtns;
   document.getElementById('m-foot-r').innerHTML='<button class="btn btn-ghost" onclick="closeModal()">Close</button><button class="btn btn-green" onclick="advIb(\''+t.id+'\')" '+(ro?'disabled title="'+s.r+' only"':'')+'>'+ibBtn(t.stage)+'</button>';
@@ -1293,7 +1302,7 @@ function ibAct(t,s){
   if(t.stage==='timbang'){const _wsr=(t.ws_items&&t.ws_items.length)?t.ws_items:[{kat:'Bagus',kg:(t.netto_kg||'')}];setTimeout(function(){const c=document.getElementById('ws-rows');if(c&&!c.children.length){_wsr.forEach(function(r){c.insertAdjacentHTML('beforeend',wsRowHtml(r));});wsCalc();}},0);return w+'<div class="frow"><div class="fg"><label>No. Weight Slip (auto — rantai DN)<span class="req">*</span></label><input type="text" id="a-ws" '+d+' value="'+(t.no_ws||chainNo('WS',t))+'"/></div><div class="fg"><label>📎 Slip Timbang (scan)</label><div class="upzone '+(t.docs.weight_slip_scan?'has':'')+'" style="padding:7px;" onclick="document.getElementById(\'f-wslip\').click()"><p style="font-size:10px;">'+(t.docs.weight_slip_scan?'✅ Slip terupload':'Upload slip timbang')+'</p></div><input type="file" id="f-wslip" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ib\',\''+t.id+'\',\'weight_slip_scan\')" '+d+'/></div></div><div class="frow"><div class="fg"><label>Gross (kg)<span class="req">*</span></label><input type="number" id="a-brt" placeholder="0" '+d+' value="'+(t.bruto||'')+'" oninput="cN()"/></div><div class="fg"><label>Tare (kg)</label><input type="number" id="a-tar" placeholder="0" '+d+' value="'+(t.tara||'')+'" oninput="cN()"/></div><div class="fg"><label>Net <span style="color:var(--green)">auto</span></label><input type="number" id="a-net" readonly style="color:var(--green);font-weight:700;" value="'+(t.netto_kg||'')+'"/></div></div><div class="frow"><div class="fg"><label>Supplier Claimed Wt (kg)</label><input type="number" id="a-wbsup" placeholder="from supplier slip" '+d+' value="'+(t.wb_supplier_kg||'')+'"/></div><div class="fg"><label>WB Reconcile</label><input type="text" id="a-wbinfo" readonly value="auto on save"/></div></div>'+((t.basis_harga==='jrg')?'<div class="frow"><div class="fg"><label>Jumlah Jerigen Aktual<span class="req">*</span></label><input type="number" step="0.5" id="a-jrgact" '+d+' value="'+(t.jrg_qty_act||t.jrg_qty_est||'')+'" oninput="jrgKgCalc()"/></div><div class="fg"><label>Harga per Jerigen</label><input type="number" id="a-jrgprice" '+d+' value="'+(t.jrg_price||'')+'" oninput="jrgKgCalc()"/></div><div class="fg"><label>Total Bayar Jerigen</label><div class="ir-v" id="jrg-total" style="padding-top:8px;">'+((t.jrg_qty_act||t.jrg_qty_est)&&t.jrg_price?fR((t.jrg_qty_act||t.jrg_qty_est)*t.jrg_price):'-')+'</div></div></div><div id="jrg-effkg" style="font-size:10px;color:var(--yellow);margin-bottom:6px;"></div>':'')+'<div class="frow"><div class="fg"><label>Moisture %</label><input type="number" step="0.01" id="a-mois" '+d+' value="'+(t.mois_pct||'')+'" oninput="wsCalc()"/></div><div class="fg"><label>Impurities %</label><input type="number" step="0.01" id="a-imp" '+d+' value="'+(t.imp_pct||'')+'" oninput="wsCalc()"/></div><div class="fg"><label>Potongan M&amp;I (auto)</label><div class="ir-v" id="ws-mi" style="padding-top:8px;">'+(t.mi_kg?((pn(t.mois_pct)+pn(t.imp_pct)).toFixed(2)+'% = '+f(t.mi_kg)+' kg'):'-')+'</div></div></div>'+'<div class="ir"><div class="ir-l">Netto Akhir setelah M&amp;I (auto)</div><div class="ir-v g" id="ws-netfinal" style="font-size:14px;">'+(t.netto_kg?f(t.netto_kg)+' kg':'-')+'</div></div>'+'<div class="sect-t mt10" style="border:none;">Pembagian Kategori Barang / Goods Split</div>'+'<div id="ws-rows"></div><div id="ws-check" style="font-size:10px;color:var(--text3);margin:2px 0 4px;"></div>'+'<button class="btn btn-ghost btn-sm" style="width:100%;margin:2px 0 8px;" onclick="addWsRow()">+ Tambah Kategori (semi / reject / ampas)</button>'+'<div class="sect-t mt10" style="border:none;">📷 Unloading Weighbridge Photo (at supplier)</div><div class="upzone '+(t.photo_wb_supplier?'has':'')+'" onclick="document.getElementById(\'f-wbsup\').click()"><p>'+(t.photo_wb_supplier?'Photo uploaded':'Upload weighbridge photo')+'</p></div><input type="file" id="f-wbsup" accept="image/*" style="display:none" onchange="upDoc(event,\'ib\',\''+t.id+'\',\'photo_wb_supplier\')" '+d+'/><div class="alert a-info">ℹ️ WS No. must reference DN No. ('+(t.no_dn||'-')+').</div>';}
   if(t.stage==='bongkar')return w+'<div class="frow"><div class="fg"><label>Storage Location</label><input type="text" id="a-lok" '+d+' value="'+(t.lokasi_simpan||'')+'" placeholder="Gudang A / Tank 2..."/></div><div class="fg"><label>Notes</label><input type="text" id="a-bn" '+d+' value="'+(t.catatan_bongkar||'')+'"/></div></div>';
   if(t.stage==='upload')return w+'<div class="alert a-info"> DO + Weight Slip are now auto-generated by the system (no manual upload needed). Use Generate Documents above to view/share them.</div><div class="frow mt10"><div class="fg"><label>Documents shared to supplier/WA?<span class="req">*</span></label><select id="a-sh" '+d+'><option value="">-- Select --</option><option value="Yes">Yes  Done</option><option value="Not yet">Not yet</option></select></div></div>';
-  if(t.stage==='memo'){const _nt=t.no_po||chainNo('NT',t);const _rk=t.supplier_rek||'';const _rows=(t.nota_items&&t.nota_items.length)?t.nota_items:[{d:(t.basis_harga==='jrg'?('UCO ('+f(t.jrg_qty_act||t.jrg_qty_est||0)+' jerigen @ '+fR(t.jrg_price||0)+')'):'UCO'),j:'Normal',kg:(t.netto_kg||''),h:(t.harga_aktual||t.est_harga||'')}];setTimeout(function(){const c=document.getElementById('nota-rows');if(c&&!c.children.length){_rows.forEach(function(r){c.insertAdjacentHTML('beforeend',notaRowHtml(r));});notaCalc();}},0);return w+'<div class="alert a-info">🧾 Nota dibuat Purchase — mengacu WS '+(t.no_ws||'-')+'. Bisa tambah baris: barang semi (harga beda), penalty, reject sebagian. / Multi-line nota by Purchase.</div>'+'<div style="background:var(--bg2);border:1px dashed var(--yellow);border-radius:8px;padding:10px;margin:10px 0;"><div style="font-size:11px;font-weight:700;color:var(--yellow);margin-bottom:6px;">Langkah TTD Supplier / Supplier Signature</div><div style="font-size:10px;color:var(--text3);margin-bottom:8px;">1. Susun baris nota di bawah. 2. Kirim paket dokumen ke supplier via WA. 3. Supplier TTD lalu foto balik. 4. Upload scan. 5. Lanjut. / Build nota, send, get signed, upload, proceed.</div><button class="btn btn-yellow btn-sm" style="width:100%;" onclick="genNotaSend(\''+t.id+'\')">📤 Kirim Paket Dokumen + Nota ke WA Supplier</button></div>'+'<div class="frow"><div class="fg"><label>No. Nota (auto — rantai DN)<span class="req">*</span></label><input type="text" id="a-po" '+d+' value="'+_nt+'" placeholder="NT-TK-MMYY-####"/></div><div class="fg"><label>No. Rekening Supplier<span class="req">*</span></label><input type="text" id="a-rek" '+d+' value="'+_rk+'" placeholder="wajib sebelum nota terkirim"/></div></div>'+'<div class="sect-t mt10" style="border:none;">Baris Nota / Nota Lines</div>'+'<div style="display:flex;gap:5px;font-size:9px;color:var(--text3);margin-bottom:3px;"><span style="flex:2;min-width:90px;">Deskripsi</span><span style="flex:1.2;min-width:86px;">Jenis</span><span style="flex:1;min-width:60px;">Kg</span><span style="flex:1;min-width:70px;">Rp/kg</span><span style="width:30px;"></span></div>'+'<div id="nota-rows"></div>'+'<button class="btn btn-ghost btn-sm" style="width:100%;margin:4px 0 8px;" onclick="addNotaRow()">+ Tambah Baris (semi / penalty / reject)</button>'+'<div class="ir"><div class="ir-l">Net Timbang</div><div class="ir-v g">'+f(t.netto_kg||0)+' kg</div></div>'+'<div class="ir"><div class="ir-l">PPN ('+(t.ppn_mode==='exclude'?'excl. +11%':t.ppn_mode==='include'?'include':'non')+')</div><div class="ir-v" id="nota-ppn">'+(t.ppn_amt?fRb(t.ppn_amt):'-')+'</div></div>'+'<div class="ir"><div class="ir-l">Total Nota (auto)</div><div class="ir-v g" id="nota-total" style="font-size:15px;">'+(t.total_bayar?fR(t.total_bayar):'-')+'</div></div>'+'<div class="ir"><div class="ir-l">Harga Efektif</div><div class="ir-v" id="nota-eff">'+(t.harga_aktual?fRb(t.harga_aktual)+'/kg':'-')+'</div></div>'+'<div class="fg mt10"><label>Payment Method</label><select id="a-mb" '+d+'><option>Bank Transfer</option><option>Cash</option><option>Giro</option></select></div>'+'<div class="sect-t mt10" style="border:none;">📎 Scan Nota TTD Supplier<span class="req">*</span></div><div class="upzone '+(t.docs.nota_kwitansi?'has':'')+'" onclick="document.getElementById(\'f-nota\').click()"><div style="font-size:20px;">'+(t.docs.nota_kwitansi?'📄':'📤')+'</div><p>'+(t.docs.nota_kwitansi?'✅ Nota TTD terupload':'Upload scan nota yang sudah TTD supplier')+'</p></div><input type="file" id="f-nota" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ib\',\''+t.id+'\',\'nota_kwitansi\')" '+d+'/>';}
+  if(t.stage==='memo'){const _nt=t.no_po||chainNo('NT',t);const _rk=t.supplier_rek||'';const _rows=(t.nota_items&&t.nota_items.length)?t.nota_items:((t.ws_items&&t.ws_items.length)?t.ws_items.filter(function(r){return r.kat!=='Ampas';}).map(function(r){const j=r.kat==='Bagus'?'Normal':r.kat==='Semi'?'Semi':(r.kat==='Reject Supplier'||r.kat==='Return Reject Buyer')?'Reject (-)':'Lainnya';return {d:'UCO '+r.kat+' (dari timbangan gudang)',j:j,kg:r.kg,h:(r.kat==='Bagus'?(t.harga_aktual||t.est_harga||''):'')};}):[{d:(t.basis_harga==='jrg'?('UCO ('+f(t.jrg_qty_act||t.jrg_qty_est||0)+' jerigen @ '+fR(t.jrg_price||0)+')'):'UCO'),j:'Normal',kg:(t.netto_kg||''),h:(t.harga_aktual||t.est_harga||'')}]);setTimeout(function(){const c=document.getElementById('nota-rows');if(c&&!c.children.length){_rows.forEach(function(r){c.insertAdjacentHTML('beforeend',notaRowHtml(r));});notaCalc();}},0);return w+'<div class="alert a-info">🧾 Nota dibuat Purchase — mengacu WS '+(t.no_ws||'-')+'. '+((t.ws_items&&t.ws_items.length)?'Baris kg OTOMATIS dari pembagian kategori gudang — tinggal isi HARGA/kg per kategori + tambah penalty bila ada.':'Bisa tambah baris: semi (harga beda), penalty, reject.')+'</div>'+'<div style="background:var(--bg2);border:1px dashed var(--yellow);border-radius:8px;padding:10px;margin:10px 0;"><div style="font-size:11px;font-weight:700;color:var(--yellow);margin-bottom:6px;">Langkah TTD Supplier / Supplier Signature</div><div style="font-size:10px;color:var(--text3);margin-bottom:8px;">1. Susun baris nota di bawah. 2. Kirim paket dokumen ke supplier via WA. 3. Supplier TTD lalu foto balik. 4. Upload scan. 5. Lanjut. / Build nota, send, get signed, upload, proceed.</div><button class="btn btn-yellow btn-sm" style="width:100%;" onclick="genNotaSend(\''+t.id+'\')">📤 Kirim Paket Dokumen + Nota ke WA Supplier</button></div>'+'<div class="frow"><div class="fg"><label>No. Nota (auto — rantai DN)<span class="req">*</span></label><input type="text" id="a-po" '+d+' value="'+_nt+'" placeholder="NT-TK-MMYY-####"/></div><div class="fg"><label>No. Rekening Supplier<span class="req">*</span></label><input type="text" id="a-rek" '+d+' value="'+_rk+'" placeholder="wajib sebelum nota terkirim"/></div></div>'+'<div class="sect-t mt10" style="border:none;">Baris Nota / Nota Lines</div>'+'<div style="display:flex;gap:5px;font-size:9px;color:var(--text3);margin-bottom:3px;"><span style="flex:2;min-width:90px;">Deskripsi</span><span style="flex:1.2;min-width:86px;">Jenis</span><span style="flex:1;min-width:60px;">Kg</span><span style="flex:1;min-width:70px;">Rp/kg</span><span style="width:30px;"></span></div>'+'<div id="nota-rows"></div>'+'<button class="btn btn-ghost btn-sm" style="width:100%;margin:4px 0 8px;" onclick="addNotaRow()">+ Tambah Baris (semi / penalty / reject)</button>'+'<div class="ir"><div class="ir-l">Net Timbang</div><div class="ir-v g">'+f(t.netto_kg||0)+' kg</div></div>'+'<div class="ir"><div class="ir-l">PPN ('+(t.ppn_mode==='exclude'?'excl. +11%':t.ppn_mode==='include'?'include':'non')+')</div><div class="ir-v" id="nota-ppn">'+(t.ppn_amt?fRb(t.ppn_amt):'-')+'</div></div>'+'<div class="ir"><div class="ir-l">Total Nota (auto)</div><div class="ir-v g" id="nota-total" style="font-size:15px;">'+(t.total_bayar?fR(t.total_bayar):'-')+'</div></div>'+'<div class="ir"><div class="ir-l">Harga Efektif</div><div class="ir-v" id="nota-eff">'+(t.harga_aktual?fRb(t.harga_aktual)+'/kg':'-')+'</div></div>'+'<div class="fg mt10"><label>Payment Method</label><select id="a-mb" '+d+'><option>Bank Transfer</option><option>Cash</option><option>Giro</option></select></div>'+'<div class="sect-t mt10" style="border:none;">📎 Scan Nota TTD Supplier<span class="req">*</span></div><div class="upzone '+(t.docs.nota_kwitansi?'has':'')+'" onclick="document.getElementById(\'f-nota\').click()"><div style="font-size:20px;">'+(t.docs.nota_kwitansi?'📄':'📤')+'</div><p>'+(t.docs.nota_kwitansi?'✅ Nota TTD terupload':'Upload scan nota yang sudah TTD supplier')+'</p></div><input type="file" id="f-nota" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ib\',\''+t.id+'\',\'nota_kwitansi\')" '+d+'/>';}
   if(t.stage==='verif'){const calc=(t.netto_kg||0)*(t.harga_aktual||0);const match=Math.abs(calc-(t.total_bayar||0))<1;return w+'<div class="ir"><div class="ir-l">Purchase Plan</div><div class="ir-v">'+f(t.rencana_beli)+' kg</div></div><div class="ir"><div class="ir-l">Actual Net</div><div class="ir-v g">'+f(t.netto_kg||0)+' kg</div></div><div class="ir"><div class="ir-l">Price/kg</div><div class="ir-v">'+fR(t.harga_aktual||0)+'</div></div><div class="ir"><div class="ir-l">Memo Total</div><div class="ir-v">'+fR(t.total_bayar||0)+'</div></div><div class="ir"><div class="ir-l">Recalculate</div><div class="ir-v '+(match?'g':'r')+'">'+fR(calc)+'</div></div><div class="ir"><div class="ir-l">Note/Receipt</div><div class="ir-v '+(t.docs.nota_kwitansi?'g':'r')+'">'+(t.docs.nota_kwitansi?'✅ Yes':'❌ Not yet')+'</div></div>'+(match?'<div class="alert a-ok">✅ Amount matches.</div>':'<div class="alert a-err">❌ Amount mismatch!</div>')+'<div class="frow mt10"><div class="fg"><label>Decision<span class="req">*</span></label><select id="a-vf" '+d+'><option value="">-- Select --</option><option value="Approve">✅ Approve</option><option value="Hold">⛔ Hold</option></select></div><div class="fg"><label>Reason (if Hold)</label><input type="text" id="a-vn" '+d+'/></div></div>';}
   if(t.stage==='bayar'){const dpS=(t.dp_gm_status==='rejected')?0:pn(t.dp_supplier_amt);const remain=Math.max(0,(t.total_bayar||0)-dpS);return w+((typeof dpAktifSupplier==='function'&&dpAktifSupplier(t.supplier).length)?'<div class="alert a-info">💰 Supplier ini punya saldo DP aktif: '+dpAktifSupplier(t.supplier).map(function(d){return d.jenis+' '+fR(dpSisa(d))+(d.auto_potong?' (auto)':' (manual)');}).join(', ')+'. Yang bertanda auto akan terpotong otomatis saat konfirmasi.</div>':'')+(pn(t.dp_supplier_amt)>0&&t.dp_gm_status==='pending'?'<div class="alert a-warn">⏳ DP '+fR(pn(t.dp_supplier_amt))+' menunggu approval GM — pembayaran terkunci. / DP awaiting GM approval — payment locked.</div>':'')+(t.dp_gm_status==='rejected'?'<div class="alert a-warn">🚫 DP DITOLAK GM'+(t.dp_gm_note?' — '+t.dp_gm_note:'')+'. Pelunasan dihitung penuh tanpa potongan DP. / DP rejected by GM; settle the full amount.</div>':'')+'<div class="ir"><div class="ir-l">Supplier</div><div class="ir-v">'+t.supplier+'</div></div><div class="ir"><div class="ir-l">Total Pay</div><div class="ir-v g" style="font-size:15px;">'+fR(t.total_bayar||0)+'</div></div>'+(dpS>0?'<div class="ir"><div class="ir-l">DP Supplier (paid)</div><div class="ir-v" style="color:var(--yellow);">- '+fR(dpS)+'</div></div><div class="ir"><div class="ir-l">Remaining to Pay</div><div class="ir-v g" style="font-size:15px;">'+fR(remain)+'</div></div>':'')+((t.payments&&t.payments.length)?'<div class="sect-t mt10" style="border:none;">Riwayat Pembayaran / Payment History</div><table class="tbl"><thead><tr><th>Tanggal</th><th>Ref</th><th>Rekening</th><th class="r">Jumlah</th><th>Oleh</th></tr></thead><tbody>'+t.payments.map(function(p){return '<tr><td class="mono" style="font-size:10px;">'+p.date+'</td><td class="mono" style="font-size:10px;">'+(p.ref||'-')+'</td><td style="font-size:10px;">'+(p.acc||'-')+'</td><td class="r mono">'+fR(p.amt)+'</td><td style="font-size:10px;">'+(p.by||'')+'</td></tr>';}).join('')+'</tbody></table><div class="ir"><div class="ir-l">Sudah dibayar</div><div class="ir-v">'+fR(t.payments.reduce(function(a,p){return a+pn(p.amt);},0))+'</div></div>':'')+'<div class="frow mt10"><div class="fg"><label>Jumlah Bayar Sekarang (Rp)<span class="req">*</span> <span style="font-weight:400;color:var(--text3);font-size:9px;">boleh parsial / kurang bayar</span></label><input type="number" id="a-payamt" '+d+' placeholder="kosongkan = bayar sisa penuh"/></div></div><div class="frow"><div class="fg"><label>Date Pay<span class="req">*</span></label><input type="date" id="a-tb" value="'+td()+'" '+d+'/></div><div class="fg"><label>Transfer Ref</label><input type="text" id="a-rf" placeholder="Ref-XXXX" '+d+' value="'+(t.ref_bayar||'')+'"/></div></div><div class="frow"><div class="fg"><label>Bayar dari rekening / Pay from account<span class="req">*</span></label><select id="a-payacc" '+d+'>'+bankOptions(t.pay_from_acc)+'</select></div></div><div class="upzone '+(t.docs.bukti_bayar?'has':'')+' mt10" onclick="document.getElementById(\'f-bp\').click()"><p>'+(t.docs.bukti_bayar?'✅Payment proof uploaded':'Upload transfer proof')+'</p></div><input type="file" id="f-bp" accept="image/*,.pdf" style="display:none" onchange="upDoc(event,\'ib\',\''+t.id+'\',\'bukti_bayar\')" '+d+'/>';}
   return '';
@@ -1499,6 +1508,41 @@ function _editReqBanner(t){
   if(r.status==='rejected')return '<div class="alert a-warn">🚫 Permintaan edit ditolak GM'+(r.gm_note?': '+r.gm_note:'')+'</div>';
   if(r.status==='applied')return '<div class="alert a-info">✏️ Transaksi pernah dikoreksi ('+dts(r.applied_at)+' oleh '+r.applied_by+') — riwayat di audit log.</div>';
   return '';
+}
+
+
+// ---- EDIT DATA DASAR PURCHASE (entri dobel / salah ketik) ----
+function openEditIb(id){
+  const t=S.ibs.find(x=>x.id===id);if(!t)return;
+  if(t.paid){toast('Sudah dibayar — pakai jalur ✏️ Minta Edit (GM)','err');return;}
+  window._curDraft='editib:'+id;
+  document.getElementById('m-title').textContent='✏️ Edit Data — '+t.id;
+  document.getElementById('m-sub').textContent='Perbaikan entri dobel/salah ketik · tercatat di audit';
+  document.getElementById('m-body').innerHTML=
+    '<div class="frow"><div class="fg" style="flex:2;"><label>Supplier</label><input type="text" id="ei-sup" value="'+crmEsc(t.supplier||'')+'" list="dl-crm-sup3"/>'+crmDatalist('supplier','dl-crm-sup3')+'</div><div class="fg"><label>HP</label><input type="text" id="ei-hp" value="'+crmEsc(t.hp||'')+'"/></div></div>'+
+    '<div class="frow"><div class="fg"><label>Plan (kg)</label><input type="number" id="ei-kg" value="'+(t.rencana_beli||'')+'"/></div><div class="fg"><label>Est. Harga/kg</label><input type="number" id="ei-h" value="'+(t.est_harga||'')+'"/></div><div class="fg"><label>Due Date</label><input type="date" id="ei-due" value="'+(t.due_date||'')+'"/></div></div>'+
+    '<div class="frow"><div class="fg"><label>Kategori</label><select id="ei-kat"><option '+(t.kategori==='POO'?'selected':'')+'>POO</option><option '+(t.kategori==='Supplier Exclusive'?'selected':'')+'>Supplier Exclusive</option><option '+(t.kategori==='Supplier Seasonal'?'selected':'')+'>Supplier Seasonal</option></select></div><div class="fg"><label>No. Rekening</label><input type="text" id="ei-rek" value="'+crmEsc(t.supplier_rek||'')+'"/></div></div>'+
+    '<div class="fg"><label>Catatan</label><input type="text" id="ei-note" value="'+crmEsc(t.catatan||'')+'"/></div>'+
+    '<div class="alert a-info">Entri benar-benar dobel? Minta Admin/GM menghapus lewat tombol 🗑 Delete.</div>';
+  document.getElementById('m-foot-l').innerHTML='';
+  document.getElementById('m-foot-r').innerHTML='<button class="btn btn-ghost" onclick="openIb(\''+id+'\')">Batal</button><button class="btn btn-green" onclick="applyEditIb(\''+id+'\')">💾 Simpan</button>';
+  showModal();
+}
+async function applyEditIb(id){
+  const t=S.ibs.find(x=>x.id===id);if(!t)return;
+  const old={sup:t.supplier,kg:t.rencana_beli,h:t.est_harga};
+  t.supplier=document.getElementById('ei-sup').value.trim()||t.supplier;
+  t.hp=document.getElementById('ei-hp').value.trim();
+  t.rencana_beli=pn(document.getElementById('ei-kg').value)||t.rencana_beli;
+  t.est_harga=pn(document.getElementById('ei-h').value);
+  t.due_date=document.getElementById('ei-due').value||null;
+  t.kategori=document.getElementById('ei-kat').value;
+  t.supplier_rek=document.getElementById('ei-rek').value.trim();
+  t.catatan=document.getElementById('ei-note').value.trim();
+  t.log=t.log||[];t.log.push({s:t.stage,by:S.nama,at:new Date().toISOString(),n:'EDIT data dasar: '+old.sup+'/'+f(old.kg)+'kg → '+t.supplier+'/'+f(t.rencana_beli)+'kg'});
+  await audit('EDIT_BASIC','inbounds',t.id,{old:old,neu:{sup:t.supplier,kg:t.rencana_beli,h:t.est_harga}},null);
+  draftClear('editib:'+id);
+  await saveIb(t);toast('✅ Data diperbarui');openIb(id);
 }
 
 function reqEditDone(id){
@@ -1880,11 +1924,57 @@ function renderNonPpn(){
   el.innerHTML='<div class="g2 mb10"><div class="card c-yellow"><div class="card-t">Total keluar via non-PPN</div><div class="card-v mono" style="font-size:13px;">'+fRb(tot)+'</div></div>'+
     '<div class="card '+(warn?'c-red':'')+'"><div class="card-t">⚠️ Transaksi PPN dibayar dari non-PPN</div><div class="card-v">'+warn+'</div></div></div>'+
     '<div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Rekening</th><th>Tanggal</th><th>Transaksi</th><th>Supplier</th><th class="r">Jumlah</th><th>PPN</th></tr></thead><tbody>'+
-    (rows.length?rows.map(function(r){return '<tr'+(r.mix?' style="background:rgba(239,68,68,.08);"':'')+' onclick="openIb(\''+r.id+'\')" style="cursor:pointer;"><td class="mono" style="font-size:9px;">'+crmEsc(r.acc)+'</td><td class="mono" style="font-size:10px;">'+r.tgl+'</td><td class="mono" style="font-size:9px;">'+r.id+'</td><td>'+crmEsc(r.sup)+'</td><td class="r mono">'+fR(r.amt)+'</td><td>'+(r.mix?'<span class="badge b-red">'+r.ppn+' ⚠️</span>':'<span class="badge b-gray">non</span>')+'</td></tr>';}).join(''):'<tr><td colspan="6" style="text-align:center;padding:12px;color:var(--text3);">Belum ada pembayaran via rekening non-PPN.</td></tr>')+
+    (rows.length?rows.map(function(r){return '<tr'+(r.mix?' style="background:rgba(212,42,79,.09);"':'')+' onclick="openIb(\''+r.id+'\')" style="cursor:pointer;"><td class="mono" style="font-size:9px;">'+crmEsc(r.acc)+'</td><td class="mono" style="font-size:10px;">'+r.tgl+'</td><td class="mono" style="font-size:9px;">'+r.id+'</td><td>'+crmEsc(r.sup)+'</td><td class="r mono">'+fR(r.amt)+'</td><td>'+(r.mix?'<span class="badge b-red">'+r.ppn+' ⚠️</span>':'<span class="badge b-gray">non</span>')+'</td></tr>';}).join(''):'<tr><td colspan="6" style="text-align:center;padding:12px;color:var(--text3);">Belum ada pembayaran via rekening non-PPN.</td></tr>')+
     '</tbody></table></div>'+
     '<button class="btn btn-ghost btn-sm mt10" onclick="_xlsExport(window._npRows||[],[\'Rekening\',\'Tanggal\',\'Transaksi\',\'Supplier\',\'Jumlah\',\'PPN\'],[\'acc\',\'tgl\',\'id\',\'sup\',\'amt\',\'ppn\'],\'RekonNonPPN_\'+td()+\'.xlsx\')">⬇️ Excel</button>';
 }
 
+
+
+// ---- OPENING STOCK PAGI WAJIB: per tanki (buku+lab) + kategori Semi/Ampas/Return ----
+const OSP_KATS=['Semi','Ampas','Return Reject Buyer'];
+function ospToday(code){const t=td();return (S.opening||[]).find(o=>o.hub===S.hub&&o.tgl===t&&(o.container_code||'')===code);}
+function renderOsPagi(){
+  const tb=document.getElementById('osp-tb');if(!tb)return;
+  const conts=(S.containers||[]).filter(c=>c.hub===S.hub);
+  let rows='';let done=0,total=0;
+  conts.forEach(function(c,i){
+    total++;const ex=ospToday(c.code);if(ex)done++;
+    rows+='<tr><td style="font-weight:600;">'+crmEsc(c.code)+'</td>'+
+      (ex?'<td class="r mono" colspan="2"><span class="badge b-green">✅ '+f(pn(ex.book_kg))+' kg'+(pn(ex.sounding_kg)!==pn(ex.book_kg)?' · fisik '+f(pn(ex.sounding_kg)):'')+'</span></td><td style="font-size:10px;">'+crmEsc(ex.lab_note||'-')+'</td>'
+      :'<td class="r"><input type="number" class="osp-b" data-code="'+crmEsc(c.code)+'" style="width:90px;text-align:right;" placeholder="wajib"/></td><td class="r"><input type="number" class="osp-f" data-code="'+crmEsc(c.code)+'" style="width:90px;text-align:right;" placeholder="= buku"/></td><td><input type="text" class="osp-l" data-code="'+crmEsc(c.code)+'" style="width:100%;min-width:120px;" placeholder="mis. FFA 3,2% M&I 0,8%"/></td>')+'</tr>';
+  });
+  OSP_KATS.forEach(function(k){
+    total++;const code='KAT:'+k;const ex=ospToday(code);if(ex)done++;
+    rows+='<tr style="background:var(--bg3);"><td style="font-weight:600;">📦 '+k+' <span style="font-size:9px;color:var(--text3);">(kategori)</span></td>'+
+      (ex?'<td class="r mono" colspan="2"><span class="badge b-green">✅ '+f(pn(ex.book_kg))+' kg</span></td><td>-</td>'
+      :'<td class="r"><input type="number" class="osp-b" data-code="'+crmEsc(code)+'" style="width:90px;text-align:right;" placeholder="wajib (boleh 0)"/></td><td class="r">-</td><td>-</td>')+'</tr>';
+  });
+  tb.innerHTML=rows||'<tr><td colspan="4" style="text-align:center;padding:12px;color:var(--text3);">Daftarkan tanki dulu di bagian Containers.</td></tr>';
+  const st=document.getElementById('osp-status');
+  if(st){st.textContent=total?done+'/'+total+' terisi hari ini':'';st.className='badge '+(done>=total&&total?'b-green':'b-yellow');}
+}
+async function saveOsPagi(){
+  const inputs=document.querySelectorAll('.osp-b');
+  if(!inputs.length){toast('Semua sudah terisi hari ini ✅');return;}
+  // wajib: semua kolom buku terisi
+  let miss=null;inputs.forEach(function(e){if(e.value==='')miss=miss||e.dataset.code;});
+  if(miss){toast('Opening WAJIB semua baris — '+miss.replace('KAT:','kategori ')+' masih kosong','err');return;}
+  const rows=[];const t=td();
+  inputs.forEach(function(e){
+    const code=e.dataset.code;const buku=pn(e.value);
+    const fEl=document.querySelector('.osp-f[data-code="'+CSS.escape(code)+'"]');
+    const lEl=document.querySelector('.osp-l[data-code="'+CSS.escape(code)+'"]');
+    const fisik=(fEl&&fEl.value!=='')?pn(fEl.value):buku;
+    rows.push({tgl:t,hub:S.hub,container_code:code,book_kg:buku,sounding_kg:fisik,diff_kg:fisik-buku,lab_note:lEl?lEl.value.trim():'',by_user:S.nama});
+  });
+  const {data,error}=await sb.from('opening_stock').insert(rows).select();
+  if(error){toast('Gagal: '+error.message,'err');return;}
+  (data||[]).forEach(r=>S.opening.unshift(r));
+  await audit('OPENING_PAGI','opening_stock','',{count:rows.length,tgl:t},null);
+  toast('✅ Opening stock pagi tersimpan ('+rows.length+' baris)');
+  renderOsPagi();renderDailyStock();renderWhDash();
+}
 
 // ---- REPORT DAILY STOCK PER TANKI + TRACKING DISCHARGE ----
 function tankIn(code){return (S.ibs||[]).filter(t=>t.hub===S.hub&&_ibReached(t,'bongkar')&&(t.lokasi_simpan||'')===code).reduce((a,t)=>a+pn(t.netto_kg),0);}
@@ -1910,9 +2000,10 @@ function renderDailyStock(){
     const snd=op?pn(op.sounding_kg):null;
     const sel=(op&&snd!=null)?Math.round(snd-buku):null;
     _dsRows.push({tanki:c.code,masuk:masuk,keluar:keluar,buku:buku,sounding:snd!=null?Math.round(snd):'',selisih:sel!=null?sel:'',lapor:op?op.tgl:'-'});
-    return '<tr><td style="font-weight:600;">'+crmEsc(c.code)+'</td><td class="r mono">'+f(masuk)+'</td><td class="r mono">'+f(keluar)+'</td><td class="r mono" style="font-weight:700;">'+f(buku)+'</td><td class="r mono">'+(snd!=null?f(Math.round(snd)):'-')+'</td><td class="r mono" style="color:'+(sel!=null&&sel<0?'var(--red)':sel!=null&&sel>0?'var(--yellow)':'inherit')+';font-weight:700;">'+(sel!=null?f(sel):'-')+'</td><td style="font-size:10px;">'+(op?(isToday?'<span class="badge b-green">✅ hari ini</span>':'<span class="badge b-yellow">'+op.tgl+'</span>'):'<span class="badge b-red">❌ belum pernah</span>')+'</td></tr>';
-  }).join(''):'<tr><td colspan="7" style="text-align:center;padding:14px;color:var(--text3);">Belum ada tanki/kontainer terdaftar — tambah di bagian Containers di bawah.</td></tr>';
+    return '<tr><td style="font-weight:600;">'+crmEsc(c.code)+'</td><td class="r mono">'+f(masuk)+'</td><td class="r mono">'+f(keluar)+'</td><td class="r mono" style="font-weight:700;">'+f(buku)+'</td><td class="r mono">'+(snd!=null?f(Math.round(snd)):'-')+'</td><td class="r mono" style="color:'+(sel!=null&&sel<0?'var(--red)':sel!=null&&sel>0?'var(--yellow)':'inherit')+';font-weight:700;">'+(sel!=null?f(sel):'-')+'</td><td style="font-size:9px;">'+crmEsc(op&&op.lab_note?op.lab_note:'-')+'</td><td style="font-size:10px;">'+(op?(isToday?'<span class="badge b-green">✅ hari ini</span>':'<span class="badge b-yellow">'+op.tgl+'</span>'):'<span class="badge b-red">❌ belum pernah</span>')+'</td></tr>';
+  }).join('')+(conts.length?['Semi','Ampas','Return Reject Buyer'].map(function(k){const bal=Math.round((invCatBalances(S.hub)[k]||0));const op=tankLastOpname('KAT:'+k);const snd=op?Math.round(pn(op.book_kg)):null;const sel=(snd!=null)?snd-bal:null;const isT=op&&op.tgl===td();_dsRows.push({tanki:'[Kategori] '+k,masuk:'',keluar:'',buku:bal,sounding:snd!=null?snd:'',selisih:sel!=null?sel:'',lapor:op?op.tgl:'-'});return '<tr style="background:var(--bg3);"><td>📦 '+k+'</td><td class="r">-</td><td class="r">-</td><td class="r mono" style="font-weight:700;">'+f(bal)+'</td><td class="r mono">'+(snd!=null?f(snd):'-')+'</td><td class="r mono" style="color:'+(sel!=null&&sel<0?'var(--red)':'inherit')+';">'+(sel!=null?f(sel):'-')+'</td><td>-</td><td style="font-size:10px;">'+(op?(isT?'<span class="badge b-green">✅ hari ini</span>':'<span class="badge b-yellow">'+op.tgl+'</span>'):'<span class="badge b-red">❌</span>')+'</td></tr>';}).join(''):''):'<tr><td colspan="8" style="text-align:center;padding:14px;color:var(--text3);">Belum ada tanki/kontainer terdaftar — tambah di bagian Containers di bawah.</td></tr>';
   const al=document.getElementById('wh-stokalert');
+  let belumK=0;OSP_KATS.forEach(function(k){if(!ospToday('KAT:'+k))belumK++;});belum+=conts.length?belumK:0;
   if(al)al.innerHTML=(conts.length&&belum)?'<div class="alert a-warn mb10">⚠️ Stok pagi WAJIB: '+belum+' dari '+conts.length+' tanki belum dilaporkan hari ini. Isi lewat form Opening Stock (buku vs sounding fisik).</div>':'';
 }
 function exportDailyStock(){renderDailyStock();_xlsExport(_dsRows,['Tanki','Masuk (kg)','Keluar (kg)','Saldo Buku','Sounding Pagi','Selisih','Lapor Terakhir'],['tanki','masuk','keluar','buku','sounding','selisih','lapor'],'DailyStock_'+S.hub+'_'+td()+'.xlsx');}
@@ -1932,7 +2023,7 @@ function renderTrackDischarge(){
     return {sup:t.supplier||'-',tgl:t.tanggal,vol:Math.round(pn(t.netto_kg)||pn(t.net_timbang)||pn(t.rencana_beli)),umur:umur,tahap:t.stage,id:t.id};
   });
   b.innerHTML=_tdBelum.length?_tdBelum.map(function(r){
-    return '<tr style="cursor:pointer;'+(r.umur>=2?'background:rgba(239,68,68,.07);':'')+'" onclick="openIb(\''+r.id+'\')"><td style="font-weight:600;">'+crmEsc(r.sup)+'</td><td class="mono" style="font-size:10px;">'+r.tgl+'</td><td class="r mono">'+f(r.vol)+'</td><td class="r mono" style="color:'+(r.umur>=2?'var(--red)':'inherit')+';">'+r.umur+'</td><td><span class="badge b-yellow">'+r.tahap+'</span></td></tr>';
+    return '<tr style="cursor:pointer;'+(r.umur>=2?'background:rgba(212,42,79,.08);':'')+'" onclick="openIb(\''+r.id+'\')"><td style="font-weight:600;">'+crmEsc(r.sup)+'</td><td class="mono" style="font-size:10px;">'+r.tgl+'</td><td class="r mono">'+f(r.vol)+'</td><td class="r mono" style="color:'+(r.umur>=2?'var(--red)':'inherit')+';">'+r.umur+'</td><td><span class="badge b-yellow">'+r.tahap+'</span></td></tr>';
   }).join(''):'<tr><td colspan="5" style="text-align:center;padding:12px;color:var(--text3);">Semua barang yang diterima sudah dibongkar. ✅</td></tr>';
   const mm=new Date().toISOString().slice(0,7);
   const sudah=(S.ibs||[]).filter(t=>t.hub===S.hub&&_ibReached(t,'upload')&&String(t.tanggal||'').slice(0,7)===mm);
@@ -2526,7 +2617,7 @@ function renderUnpaid(){
   unpaid.sort(function(a,b){return (b.urgent?1:0)-(a.urgent?1:0);});const groups={};unpaid.forEach(function(t){if(!groups[t.supplier])groups[t.supplier]=[];groups[t.supplier].push(t);});
   el.innerHTML=Object.keys(groups).map(function(sup){
     const txns=groups[sup];const sub=txns.reduce((a,t)=>a+pn(t.total_bayar),0);
-    return '<div style="margin-bottom:14px;"><div style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px 6px 0 0;padding:9px 14px;display:flex;justify-content:space-between;align-items:center;"><span style="font-weight:700;">'+sup+' <span style="font-size:11px;color:var(--text2);font-weight:400;">('+txns.length+')</span></span><span class="mono" style="color:var(--yellow);">'+fR(sub)+'</span></div><div style="border:1px solid var(--border2);border-top:none;border-radius:0 0 6px 6px;overflow:hidden;"><table class="tbl"><thead><tr><th>ID</th><th>Date</th><th>WS</th><th>Net</th><th>Total</th><th>Memo</th><th>Pay</th></tr></thead><tbody>'+txns.map(function(t){return '<tr'+(t.urgent?' style="background:rgba(239,68,68,.06);"':'')+'><td class="mono" style="font-size:9px;">'+(t.urgent?'🔥 ':'')+t.id+(t.urgent&&t.urgent_status==='pending'&&can('Admin')?' <button class="btn btn-yellow btn-sm" onclick="gmUrgentApprove(\''+t.id+'\')">OK Urgent</button>':'')+'</td><td>'+t.tanggal+'</td><td class="mono">'+(t.no_ws||'-')+'</td><td class="mono">'+f(t.netto_kg||0)+' kg</td><td class="mono" style="color:var(--green);font-weight:700;">'+fR(t.total_bayar||0)+((t.payments&&t.payments.length&&!t.paid)?'<br><span style="font-size:9px;color:var(--yellow);">sisa '+fR(Math.max(0,pn(t.payable_net!=null?t.payable_net:t.total_bayar)-t.payments.reduce(function(a,p){return a+pn(p.amt);},0)))+'</span>':'')+'</td><td class="mono">'+(t.no_po||'-')+'</td><td>'+(t.stage==='bayar'?'<button class="btn btn-green btn-sm" onclick="openIb(\''+t.id+'\')" '+(!can('Finance')?'disabled':'')+'>Pay</button>':'<button class="btn btn-ghost btn-sm" onclick="openIb(\''+t.id+'\')">'+(IB_S[_ibIdx(t.stage)]?IB_S[_ibIdx(t.stage)].n:t.stage)+'</button>')+'</td></tr>';}).join('')+'</tbody></table></div></div>';
+    return '<div style="margin-bottom:14px;"><div style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px 6px 0 0;padding:9px 14px;display:flex;justify-content:space-between;align-items:center;"><span style="font-weight:700;">'+sup+' <span style="font-size:11px;color:var(--text2);font-weight:400;">('+txns.length+')</span></span><span class="mono" style="color:var(--yellow);">'+fR(sub)+'</span></div><div style="border:1px solid var(--border2);border-top:none;border-radius:0 0 6px 6px;overflow:hidden;"><table class="tbl"><thead><tr><th>ID</th><th>Date</th><th>WS</th><th>Net</th><th>Total</th><th>Memo</th><th>Pay</th></tr></thead><tbody>'+txns.map(function(t){return '<tr'+(t.urgent?' style="background:rgba(212,42,79,.07);"':'')+'><td class="mono" style="font-size:9px;">'+(t.urgent?'🔥 ':'')+t.id+(t.urgent&&t.urgent_status==='pending'&&can('Admin')?' <button class="btn btn-yellow btn-sm" onclick="gmUrgentApprove(\''+t.id+'\')">OK Urgent</button>':'')+'</td><td>'+t.tanggal+'</td><td class="mono">'+(t.no_ws||'-')+'</td><td class="mono">'+f(t.netto_kg||0)+' kg</td><td class="mono" style="color:var(--green);font-weight:700;">'+fR(t.total_bayar||0)+((t.payments&&t.payments.length&&!t.paid)?'<br><span style="font-size:9px;color:var(--yellow);">sisa '+fR(Math.max(0,pn(t.payable_net!=null?t.payable_net:t.total_bayar)-t.payments.reduce(function(a,p){return a+pn(p.amt);},0)))+'</span>':'')+'</td><td class="mono">'+(t.no_po||'-')+'</td><td>'+(t.stage==='bayar'?'<button class="btn btn-green btn-sm" onclick="openIb(\''+t.id+'\')" '+(!can('Finance')?'disabled':'')+'>Pay</button>':'<button class="btn btn-ghost btn-sm" onclick="openIb(\''+t.id+'\')">'+(IB_S[_ibIdx(t.stage)]?IB_S[_ibIdx(t.stage)].n:t.stage)+'</button>')+'</td></tr>';}).join('')+'</tbody></table></div></div>';
   }).join('');
 }
 
@@ -3756,7 +3847,7 @@ async function submitReturn(){
   const spec=document.getElementById('rt-spec').value.trim();
   const log=pn(document.getElementById('rt-log').value);
   const obId=document.getElementById('rt-ob').value;
-  const row={hub:S.hub,tgl:tgl,ob_id:obId||null,qty_kg:qty,spec:spec,hpp_idr:_retPreview.hpp,logistic_idr:log,fifo_detail:_retPreview.detail,by_user:S.nama};
+  const row={hub:S.hub,tgl:tgl,ob_id:obId||null,qty_kg:qty,spec:spec,hpp_idr:_retPreview.hpp,logistic_idr:log,fifo_detail:_retPreview.detail,by_user:S.nama,buyer:(document.getElementById('rt-buyer')?document.getElementById('rt-buyer').value.trim():'')};
   const {data,error}=await sb.from('returns').insert(row).select();
   if(error){toast('Save failed: '+error.message,'err');return;}
   if(data&&data[0])S.returns.unshift(data[0]);
@@ -3768,7 +3859,7 @@ async function submitReturn(){
 // ---- RENDER WAREHOUSE ----
 function renderWarehouse(){
   const hub=S.hub;
-  try{renderWhDash();renderDailyStock();renderTrackDischarge();}catch(e){}
+  try{renderOsPagi();renderWhDash();renderDailyStock();renderTrackDischarge();const _dlb=document.getElementById('dl-crm-buy2');if(_dlb)_dlb.innerHTML=(S.crm||[]).filter(c=>c.type==='buyer').map(c=>'<option>'+crmEsc(c.name)+'</option>').join('');}catch(e){}
   const wh=document.getElementById('wh-hub');if(wh)wh.textContent=hub;
   // dates default
   ['r-tgl','o-tgl','am-tgl','rt-tgl'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.value)e.value=td();});
@@ -4154,7 +4245,7 @@ function renderNotifications(){
   const badge=document.getElementById('notif-count');
   if(badge){const warns=n.filter(x=>x.type==='warn').length;badge.textContent=warns||'';badge.style.display=warns?'inline-flex':'none';}
   if(!n.length){el.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">✓ All clear — no alerts.</div>';return;}
-  el.innerHTML=n.map(x=>'<div onclick="gotoTab(\''+x.tab+'\')" style="display:flex;gap:8px;align-items:center;padding:9px 11px;border-bottom:1px solid var(--bg3);cursor:pointer;font-size:12px;'+(x.type==='warn'?'background:rgba(239,68,68,.06);':'')+'"><span style="font-size:15px;">'+x.icon+'</span><span>'+x.msg+'</span></div>').join('');
+  el.innerHTML=n.map(x=>'<div onclick="gotoTab(\''+x.tab+'\')" style="display:flex;gap:8px;align-items:center;padding:9px 11px;border-bottom:1px solid var(--bg3);cursor:pointer;font-size:12px;'+(x.type==='warn'?'background:rgba(212,42,79,.07);':'')+'"><span style="font-size:15px;">'+x.icon+'</span><span>'+x.msg+'</span></div>').join('');
 }
 
 // ---------- REPORTS: AR/AP + SUPPLIER render hooks ----------
@@ -4332,7 +4423,7 @@ function _showUpdBanner(){
   if(document.getElementById('upd-banner'))return;
   const d=document.createElement('div');
   d.id='upd-banner';
-  d.style.cssText='position:fixed;bottom:14px;left:14px;right:14px;z-index:99999;background:var(--green,#16A75C);color:#06130b;padding:12px 14px;border-radius:12px;font-weight:700;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.45);';
+  d.style.cssText='position:fixed;bottom:14px;left:14px;right:14px;z-index:99999;background:var(--green,#16A75C);color:#06130b;padding:12px 14px;border-radius:12px;font-weight:700;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(20,40,70,.18);';
   d.innerHTML='🆕 Versi baru ERP sudah terpasang <button onclick="try{draftSave()}catch(e){};location.reload()" style="background:#06130b;color:#fff;border:0;border-radius:8px;padding:9px 16px;font-weight:700;white-space:nowrap;">Muat Ulang</button>';
   document.body.appendChild(d);
 }

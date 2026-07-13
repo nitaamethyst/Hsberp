@@ -714,24 +714,25 @@ const sb=supabase.createClient(SB_URL,SB_KEY);
 
 // ════════════ CONSTANTS ════════════
 // Flow Gudang BARU: Terima -> Cek Sampel -> Timbang -> Bongkar -> Upload DO
+const SLA_H=96; // 4 hari per tahap
 const IB_S=[
-  {id:'terima',n:'Receive',r:'Gudang',h:2},
-  {id:'sampel',n:'Sample Check',r:'Gudang',h:1},
-  {id:'timbang',n:'Weigh',r:'Gudang',h:1},
-  {id:'bongkar',n:'Unload',r:'Gudang',h:2},
-  {id:'upload',n:'Upload DO',r:'Gudang',h:1},
-  {id:'memo',n:'Nota (Purchase)',r:'Purchase-Beli',h:2},
-  {id:'verif',n:'Verify',r:'Finance',h:1},
-  {id:'bayar',n:'Pay',r:'Finance',h:2},
+  {id:'terima',n:'Receive',r:'Gudang',h:SLA_H},
+  {id:'sampel',n:'Sample Check',r:'Gudang',h:SLA_H},
+  {id:'timbang',n:'Weigh',r:'Gudang',h:SLA_H},
+  {id:'bongkar',n:'Unload',r:'Gudang',h:SLA_H},
+  {id:'upload',n:'Upload DO',r:'Gudang',h:SLA_H},
+  {id:'memo',n:'Nota (Purchase)',r:'Purchase-Beli',h:SLA_H},
+  {id:'verif',n:'Verify',r:'Finance',h:SLA_H},
+  {id:'bayar',n:'Pay',r:'Finance',h:SLA_H},
   {id:'done',n:'Done',r:'-',h:0}
 ];
 const OB_S=[
-  {id:'po_buyer',n:'PO Buyer',r:'Sales-Jual',h:4},
-  {id:'prepay',n:'Prepayment',r:'Finance',h:8},
-  {id:'muat',n:'Load',r:'Gudang',h:4},
-  {id:'do_keluar',n:'Outbound DO',r:'Gudang',h:2},
-  {id:'inv_fp',n:'Invoice+FP',r:'Finance',h:4},
-  {id:'lunas',n:'Settled',r:'Finance',h:24},
+  {id:'po_buyer',n:'PO Buyer',r:'Sales-Jual',h:SLA_H},
+  {id:'prepay',n:'Prepayment',r:'Finance',h:SLA_H},
+  {id:'muat',n:'Load',r:'Gudang',h:SLA_H},
+  {id:'do_keluar',n:'Outbound DO',r:'Gudang',h:SLA_H},
+  {id:'inv_fp',n:'Invoice+FP',r:'Finance',h:SLA_H},
+  {id:'lunas',n:'Settled',r:'Finance',h:SLA_H},
   {id:'done',n:'Done',r:'-',h:0}
 ];
 // Stage minimal yang boleh diretur (mundur). Inbound: mulai sampel. Outbound: mulai prepay.
@@ -1742,6 +1743,42 @@ function kpiDivsForRole(){return S.role==='Admin'?Object.keys(KPI_DEF):(KPI_ROLE
 function kpiPeriod(){const e=document.getElementById('kpi-per');return (e&&e.value)||new Date().toISOString().slice(0,7);}
 function kpiRec(div,per){return (S.kpi||[]).find(r=>r.divisi===div&&r.period===per&&r.hub===S.hub);}
 
+
+// ---- KECEPATAN TAHAP vs SLA 4 HARI → KPI ----
+function _stageDurs(t){
+  // urutan waktu: created_at → tiap entri log (l.s = tahap yang diselesaikan pada l.at)
+  const seq=[];const start=t.created_at||((t.tanggal||'')+'T00:00:00');
+  let prev=new Date(start).getTime();
+  (t.log||[]).forEach(function(l){
+    if(!l.at||!l.s)return;
+    const at=new Date(l.at).getTime();if(!isFinite(at)||!isFinite(prev))return;
+    const hrs=Math.max(0,(at-prev)/3600000);
+    seq.push({s:l.s,hrs:hrs});prev=at;
+  });
+  return seq;
+}
+function kpiStageStats(div,per){
+  const map={'Warehouse':{ib:['terima','sampel','timbang','bongkar','upload'],ob:['muat','do_keluar']},
+             'Commercial':{ib:['memo'],ob:[]},
+             'Finance':{ib:['verif','bayar'],ob:['prepay','inv_fp','lunas']},
+             'Sales':{ib:[],ob:['po_buyer']}};
+  const m=map[div];if(!m)return null;
+  const inM=d=>String(d||'').slice(0,7)===per;
+  let tot=0,ok=0,sumH=0;
+  const scan=function(list,stages){
+    (list||[]).forEach(function(t){
+      if(t.hub!==S.hub||!inM(t.tanggal))return;
+      _stageDurs(t).forEach(function(d){
+        if(stages.indexOf(d.s)<0)return;
+        tot++;sumH+=d.hrs;if(d.hrs<=SLA_H)ok++;
+      });
+    });
+  };
+  scan(S.ibs,m.ib);scan(S.obs,m.ob);
+  if(!tot)return null;
+  return {tot:tot,ok:ok,pct:Math.round(ok/tot*100),avgHari:(sumH/tot/24)};
+}
+
 // Angka otomatis dari data ERP (referensi, bukan skor)
 function kpiAuto(div,per){
   const inM=d=>String(d||'').slice(0,7)===per;
@@ -1789,6 +1826,8 @@ function kpiAuto(div,per){
     out.push(['Selisih rekon persediaan',ops.length?f(Math.round(ops.reduce((a,o)=>a+Math.abs(pn(o.diff_kg)),0)))+' kg':'-','target ≤0,5%']);
     out.push(['Transaksi PPN tercatat',(ibs.filter(t=>t.ppn_mode&&t.ppn_mode!=='non').length)+' txn','cek faktur masukan']);
   }
+  const _ss=kpiStageStats(div,per);
+  if(_ss){out.unshift(['⏱ Tahap selesai ≤4 hari (SLA)',_ss.pct+'% ('+_ss.ok+'/'+_ss.tot+') · rata-rata '+_ss.avgHari.toFixed(1)+' hari','semakin cepat → pencapaian KPI makin tinggi; saran nilai: '+_ss.pct+'%']);}
   return out;
 }
 function renderKpi(){

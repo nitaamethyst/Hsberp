@@ -907,6 +907,11 @@ async function afterLogin(session){
   try{ subscribeRealtime(); }catch(e){ /* realtime opsional */ }
   setInterval(()=>{const c=document.getElementById('clk');if(c)c.textContent=new Date().toLocaleTimeString('en-US');},1000);
   setInterval(refAll,30000);
+  // Ambil ulang data dari server tiap 3 menit (saat tab terlihat) — realtime bisa putus diam-diam,
+  // dan refAll saja hanya render ulang state lama. Ini jaring pengaman untuk SEMUA device.
+  setInterval(function(){ if(document.visibilityState==='visible'&&S.uid)loadAll(); },180000);
+  // Saat koneksi internet pulih (HP tim sering pindah WiFi ↔ 4G), langsung muat ulang data.
+  window.addEventListener('online',function(){ if(S.uid)loadAll(); });
 }
 
 function openChangePass(){
@@ -950,17 +955,41 @@ function withTimeout(promise,ms,label){
     new Promise((_,rej)=>setTimeout(()=>rej(new Error('Timeout '+label)),ms))
   ]);
 }
+// _loadCore: satu percobaan ambil data inti. Return true jika sukses.
+// PENTING: state (S.*) HANYA ditimpa saat query sukses — kegagalan tidak boleh mengosongkan data yang sudah tampil.
+async function _loadCore(){
+  const [ib,ob,ks,pr,ex]=await Promise.all([
+    withTimeout(sb.from('inbounds').select('*').order('tanggal',{ascending:false}),12000,'inbounds'),
+    withTimeout(sb.from('outbounds').select('*').order('tanggal',{ascending:false}),12000,'outbounds'),
+    withTimeout(sb.from('kas_reports').select('*').order('tgl',{ascending:false}),12000,'kas'),
+    withTimeout(sb.from('profiles').select('*'),12000,'profiles'),
+    withTimeout(sb.from('expenses').select('*').order('tgl',{ascending:false}),12000,'expenses')
+  ]);
+  if(ib.error)throw ib.error; if(ob.error)throw ob.error; if(ks.error)throw ks.error; if(pr.error)throw pr.error;
+  S.ibs=ib.data||[];S.obs=ob.data||[];S.kas=ks.data||[];S.profiles=pr.data||[];if(ex&&!ex.error)S.expenses=ex.data||[];
+  return true;
+}
+let _lastLoadOk=0;      // timestamp load sukses terakhir
+let _loadInFlight=false; // cegah loadAll dobel
 async function loadAll(){
+  if(_loadInFlight)return; _loadInFlight=true;
   try{
-    const [ib,ob,ks,pr,ex]=await Promise.all([
-      withTimeout(sb.from('inbounds').select('*').order('tanggal',{ascending:false}),12000,'inbounds'),
-      withTimeout(sb.from('outbounds').select('*').order('tanggal',{ascending:false}),12000,'outbounds'),
-      withTimeout(sb.from('kas_reports').select('*').order('tgl',{ascending:false}),12000,'kas'),
-      withTimeout(sb.from('profiles').select('*'),12000,'profiles'),
-      withTimeout(sb.from('expenses').select('*').order('tgl',{ascending:false}),12000,'expenses')
-    ]);
-    if(ib.error)throw ib.error; if(ob.error)throw ob.error; if(ks.error)throw ks.error; if(pr.error)throw pr.error;
-    S.ibs=ib.data||[];S.obs=ob.data||[];S.kas=ks.data||[];S.profiles=pr.data||[];if(ex&&!ex.error)S.expenses=ex.data||[];
+    // Retry hingga 3x dengan jeda bertingkat (0s, 2s, 5s) — Supabase kadang lag sesaat.
+    let ok=false,lastErr=null;
+    const delays=[0,2000,5000];
+    for(let i=0;i<delays.length;i++){
+      if(delays[i])await new Promise(r=>setTimeout(r,delays[i]));
+      try{ ok=await _loadCore(); break; }
+      catch(e){ lastErr=e; }
+    }
+    if(!ok){
+      // GAGAL total: JANGAN kosongkan data lama. Tampilkan banner + jadwalkan retry otomatis.
+      _showStaleBanner(lastErr);
+      setTimeout(function(){ loadAll(); },30000);
+      return;
+    }
+    _lastLoadOk=Date.now();
+    _hideStaleBanner();
     try{const stg=await withTimeout(sb.from('app_settings').select('*'),8000,'settings');if(stg&&!stg.error){S.settings={};(stg.data||[]).forEach(r=>{S.settings[r.key]=r.value;});}}catch(e){}
     try{
       const [cn,rv,rt,op,am,au,bk,cr,dpx,kp]=await Promise.all([
@@ -987,11 +1016,27 @@ async function loadAll(){
       if(kp&&!kp.error)S.kpi=kp.data||[];
     }catch(e){}
   }catch(e){
-    toast('Data: '+(e.message||e),'err');
-    S.ibs=S.ibs||[];S.obs=S.obs||[];S.kas=S.kas||[];S.profiles=S.profiles||[];
+    // Kegagalan tak terduga: JANGAN pernah reset data ke []. Data lama lebih baik daripada 0.
+    _showStaleBanner(e);
+  }finally{
+    _loadInFlight=false;
   }
   refAll();
 }
+
+// ── Banner "data gagal dimuat" — supaya tim tahu angka mungkin belum update, bukan diam-diam jadi 0 ──
+function _showStaleBanner(err){
+  let d=document.getElementById('stale-banner');
+  if(!d){
+    d=document.createElement('div');
+    d.id='stale-banner';
+    d.style.cssText='position:fixed;top:8px;left:8px;right:8px;z-index:99998;background:#B45309;color:#fff;padding:10px 12px;border-radius:10px;font-weight:700;font-size:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;box-shadow:0 6px 18px rgba(0,0,0,.25);';
+    document.body.appendChild(d);
+  }
+  d.innerHTML='⚠️ Koneksi ke server terganggu — data di layar mungkin belum terbaru. Mencoba ulang otomatis... <button onclick="loadAll()" style="background:#fff;color:#B45309;border:0;border-radius:8px;padding:7px 14px;font-weight:700;white-space:nowrap;">Coba Lagi</button>';
+  d.style.display='flex';
+}
+function _hideStaleBanner(){const d=document.getElementById('stale-banner');if(d)d.style.display='none';}
 
 // ════════════ REALTIME ════════════
 function subscribeRealtime(){

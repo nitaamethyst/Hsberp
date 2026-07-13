@@ -957,16 +957,44 @@ function withTimeout(promise,ms,label){
 }
 // _loadCore: satu percobaan ambil data inti. Return true jika sukses.
 // PENTING: state (S.*) HANYA ditimpa saat query sukses — kegagalan tidak boleh mengosongkan data yang sudah tampil.
+// ── DATA WINDOW: hanya muat N hari terakhir agar app tetap ringan saat transaksi ribuan/hari ──
+// 120 hari cukup untuk FIFO + anchor opname bulanan. Data lebih lama diambil on-demand (Reports/Rekap).
+const DATA_WINDOW_DAYS=120;
+function _winStart(){const d=new Date();d.setDate(d.getDate()-DATA_WINDOW_DAYS);return d.toISOString().slice(0,10);}
 async function _loadCore(){
+  // ── GUARD SESI: RLS butuh role authenticated. Token JWT yang kedaluwarsa membuat query
+  // "sukses" tapi 0 baris (disaring RLS) — inilah penyebab dashboard tiba-tiba jadi 0.
+  // Android sering membekukan timer auto-refresh token saat tab di background.
+  let _ses=null;
+  try{const r=await sb.auth.getSession();_ses=r.data?r.data.session:null;}catch(e){}
+  const _expSoon=_ses&&_ses.expires_at&&(_ses.expires_at*1000-Date.now()<60000);
+  if(!_ses||_expSoon){
+    try{const rf=await sb.auth.refreshSession();_ses=rf.data?rf.data.session:null;}catch(e){}
+  }
+  if(!_ses){
+    // Sesi benar-benar mati: minta login ulang secara eksplisit, jangan tampilkan 0 diam-diam.
+    toast('Sesi login berakhir — silakan login ulang / Session expired, please log in again','err');
+    document.getElementById('app').style.display='none';
+    document.getElementById('login').style.display='flex';
+    throw new Error('Sesi berakhir / session expired');
+  }
+  const w=_winStart();
   const [ib,ob,ks,pr,ex]=await Promise.all([
-    withTimeout(sb.from('inbounds').select('*').order('tanggal',{ascending:false}),12000,'inbounds'),
-    withTimeout(sb.from('outbounds').select('*').order('tanggal',{ascending:false}),12000,'outbounds'),
-    withTimeout(sb.from('kas_reports').select('*').order('tgl',{ascending:false}),12000,'kas'),
+    withTimeout(sb.from('inbounds').select('*').gte('tanggal',w).order('tanggal',{ascending:false}),12000,'inbounds'),
+    withTimeout(sb.from('outbounds').select('*').gte('tanggal',w).order('tanggal',{ascending:false}),12000,'outbounds'),
+    withTimeout(sb.from('kas_reports').select('*').gte('tgl',w).order('tgl',{ascending:false}),12000,'kas'),
     withTimeout(sb.from('profiles').select('*'),12000,'profiles'),
-    withTimeout(sb.from('expenses').select('*').order('tgl',{ascending:false}),12000,'expenses')
+    withTimeout(sb.from('expenses').select('*').gte('tgl',w).order('tgl',{ascending:false}),12000,'expenses')
   ]);
   if(ib.error)throw ib.error; if(ob.error)throw ob.error; if(ks.error)throw ks.error; if(pr.error)throw pr.error;
+  // ── KANARI RLS: tabel profiles tidak mungkin kosong saat login valid (minimal profil sendiri).
+  // Jika kosong berarti token tidak dikenali RLS → paksa refresh & ulangi, jangan timpa data dengan kosong.
+  if(!(pr.data||[]).length){
+    try{await sb.auth.refreshSession();}catch(e){}
+    throw new Error('RLS menyaring semua data (token bermasalah) — mencoba ulang');
+  }
   S.ibs=ib.data||[];S.obs=ob.data||[];S.kas=ks.data||[];S.profiles=pr.data||[];if(ex&&!ex.error)S.expenses=ex.data||[];
+  S.loadedFrom=w;
   return true;
 }
 let _lastLoadOk=0;      // timestamp load sukses terakhir
@@ -992,12 +1020,13 @@ async function loadAll(){
     _hideStaleBanner();
     try{const stg=await withTimeout(sb.from('app_settings').select('*'),8000,'settings');if(stg&&!stg.error){S.settings={};(stg.data||[]).forEach(r=>{S.settings[r.key]=r.value;});}}catch(e){}
     try{
+      const w2=_winStart();
       const [cn,rv,rt,op,am,au,bk,cr,dpx,kp]=await Promise.all([
         sb.from('containers').select('*').order('code',{ascending:true}),
-        sb.from('receivings').select('*').order('tgl',{ascending:false}),
-        sb.from('returns').select('*').order('tgl',{ascending:false}),
-        sb.from('opening_stock').select('*').order('tgl',{ascending:false}),
-        sb.from('ampas').select('*').order('tgl',{ascending:false}),
+        sb.from('receivings').select('*').gte('tgl',w2).order('tgl',{ascending:false}),
+        sb.from('returns').select('*').gte('tgl',w2).order('tgl',{ascending:false}),
+        sb.from('opening_stock').select('*').gte('tgl',w2).order('tgl',{ascending:false}),
+        sb.from('ampas').select('*').gte('tgl',w2).order('tgl',{ascending:false}),
         sb.from('audit_log').select('*').order('ts',{ascending:false}).limit(200),
         sb.from('bank_accounts').select('*').order('code',{ascending:true}),
         sb.from('crm_contacts').select('*').order('name',{ascending:true}),
@@ -1037,6 +1066,31 @@ function _showStaleBanner(err){
   d.style.display='flex';
 }
 function _hideStaleBanner(){const d=document.getElementById('stale-banner');if(d)d.style.display='none';}
+
+// ── ON-DEMAND HISTORY: ambil data lebih lama dari window hanya saat dibutuhkan (Reports/Rekap) ──
+let _histBusy=false;
+async function ensureHistory(fromDate,cb){
+  if(!fromDate||!S.loadedFrom||fromDate>=S.loadedFrom||_histBusy)return false;
+  _histBusy=true;
+  toast('Memuat data lama dari server... / Loading older data...');
+  try{
+    const upto=S.loadedFrom;
+    const [ib,ob,ks,ex,rt]=await Promise.all([
+      withTimeout(sb.from('inbounds').select('*').gte('tanggal',fromDate).lt('tanggal',upto),20000,'hist-ib'),
+      withTimeout(sb.from('outbounds').select('*').gte('tanggal',fromDate).lt('tanggal',upto),20000,'hist-ob'),
+      withTimeout(sb.from('kas_reports').select('*').gte('tgl',fromDate).lt('tgl',upto),20000,'hist-ks'),
+      withTimeout(sb.from('expenses').select('*').gte('tgl',fromDate).lt('tgl',upto),20000,'hist-ex'),
+      withTimeout(sb.from('returns').select('*').gte('tgl',fromDate).lt('tgl',upto),20000,'hist-rt')
+    ]);
+    const merge=function(arr,res){if(!res||res.error||!res.data)return arr;const ids={};arr.forEach(x=>ids[x.id]=1);res.data.forEach(x=>{if(!ids[x.id])arr.push(x);});return arr;};
+    S.ibs=merge(S.ibs,ib);S.obs=merge(S.obs,ob);S.kas=merge(S.kas,ks);S.expenses=merge(S.expenses,ex);S.returns=merge(S.returns||[],rt);
+    S.loadedFrom=fromDate;
+    toast('Data lama termuat / Older data loaded');
+    if(cb)cb();
+    return true;
+  }catch(e){toast('Gagal memuat data lama: '+(e.message||e),'err');return false;}
+  finally{_histBusy=false;}
+}
 
 // ════════════ REALTIME ════════════
 function subscribeRealtime(){
@@ -2901,6 +2955,8 @@ function renderSLA(){
 // ════════════ REKAP ════════════
 function renderRekap(){
   const from=document.getElementById('rf-from').value;const to=document.getElementById('rf-to').value;const hub=document.getElementById('rf-hub').value;
+  // Jika filter tanggal lebih lama dari window data yang termuat, ambil data lama dulu dari server.
+  if(from&&S.loadedFrom&&from<S.loadedFrom){ensureHistory(from,renderRekap);}
   let ibs=S.ibs.slice();let obs=S.obs.slice();
   if(from){ibs=ibs.filter(t=>t.tanggal>=from);obs=obs.filter(t=>t.tanggal>=from);}
   if(to){ibs=ibs.filter(t=>t.tanggal<=to);obs=obs.filter(t=>t.tanggal<=to);}
@@ -4126,6 +4182,9 @@ function _plData(hub,m){
 function renderReports(){
   const type=document.getElementById('rep-type').value;
   const {m}=_monthRange();const hub=S.hub;
+  // Jika bulan yang dipilih lebih lama dari window data, ambil data lama dulu dari server.
+  const _ms=m+'-01';
+  if(S.loadedFrom&&_ms<S.loadedFrom){ensureHistory(_ms,renderReports);}
   const el=document.getElementById('rep-body');if(!el)return;
   if(type==='arap'||type==='supplier'){renderExtraReport(type,hub,m,el);return;}
   if(type==='pl'){

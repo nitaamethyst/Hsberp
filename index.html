@@ -762,8 +762,8 @@ const ROLE_TABS={
   'Finance':['dash','kas','expenses','inventory','reports','unpaid','unlunas','sla','supplier','crm','kpi'],
   'Purchase-Beli':['dash','inbound','warehouse','inventory','sla','supplier','crm','kpi'],
   'Sales-Jual':['dash','outbound','inventory','unlunas','sla','crm','kpi'],
-  'Gudang':['dash','inbound','outbound','inventory','warehouse','sla','supplier','kpi'],
-  'GA':['dash','ga','inventory','supplier','rekap','kpi']
+  'Gudang':['dash','inbound','outbound','inventory','warehouse','sla','supplier','crm','kpi'],
+  'GA':['dash','ga','inventory','supplier','sla','crm','rekap','kpi']
 };
 
 // ════════════ STATE ════════════
@@ -790,10 +790,30 @@ function obLate(t){if(t.stage==='done')return false;const s=OB_S[obI(t.stage)];r
 
 // ════════════ AUTH ════════════
 async function init(){
+  // ── WATCHDOG BOOT: layar "Menghubungkan..." tidak boleh mengunci selamanya.
+  // Jika 8 detik belum selesai (jaringan ke Supabase menggantung), paksa tampilkan login.
+  const _bootWd=setTimeout(function(){
+    const ld=document.getElementById('loading');
+    if(ld&&ld.style.display!=='none'){
+      ld.style.display='none';
+      document.getElementById('login').style.display='flex';
+      const err=document.getElementById('login-err');
+      if(err){err.textContent='Koneksi ke server lambat — silakan login. / Server connection is slow — please log in.';err.className='login-err show';}
+    }
+  },8000);
   // Jika datang dari link reset password, tampilkan form set password baru (jangan auto-login).
   const _hash=window.location.hash||'';
   const _isRecovery=_hash.indexOf('type=recovery')>-1;
-  const {data:{session}}=await sb.auth.getSession();
+  // getSession dibatasi 6 detik — jangan biarkan menggantung tanpa batas.
+  let session=null;
+  try{
+    const r=await Promise.race([
+      sb.auth.getSession(),
+      new Promise(res=>setTimeout(()=>res({data:{session:null},_timeout:true}),6000))
+    ]);
+    session=r&&r.data?r.data.session:null;
+  }catch(e){}
+  clearTimeout(_bootWd);
   if(_isRecovery){
     document.getElementById('loading').style.display='none';
     document.getElementById('login').style.display='flex';

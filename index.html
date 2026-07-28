@@ -547,6 +547,13 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
     <div class="sect-t mt10" style="border:none;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;"><span>✅ Sudah Dibongkar <span id="td-info" style="font-weight:400;color:var(--text3);font-size:10px;"></span></span><span style="display:flex;gap:6px;align-items:center;font-weight:400;"><input type="date" id="td-tgl" class="sinp" style="width:auto;font-size:11px;" onchange="document.getElementById('td-all').checked=false;renderTrackDischarge()"/><label style="font-size:10px;display:flex;align-items:center;gap:3px;"><input type="checkbox" id="td-all" onchange="renderTrackDischarge()"/> sebulan</label></span></div>
     <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Supplier</th><th>Tgl Terima</th><th>Tgl Bongkar</th><th class="r">Volume (kg)</th><th>Tanki</th></tr></thead><tbody id="td-sudah"></tbody></table></div>
   </div>
+  <div class="card mb10">
+    <div class="card-t" style="display:flex;justify-content:space-between;align-items:center;">🚚 Tracking Muat — Loading (Sales) <button class="btn btn-ghost btn-sm" onclick="exportLoad()">⬇️ Excel</button></div>
+    <div class="sect-t mt10" style="border:none;">⏳ Belum Dimuat / Not Yet Loaded</div>
+    <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Buyer</th><th>Tgl Order</th><th class="r">Volume (kg)</th><th class="r">Umur (hari)</th><th>Tahap</th></tr></thead><tbody id="tl-belum"></tbody></table></div>
+    <div class="sect-t mt10" style="border:none;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;"><span>✅ Sudah Dimuat <span id="tl-info" style="font-weight:400;color:var(--text3);font-size:10px;"></span></span><span style="display:flex;gap:6px;align-items:center;font-weight:400;"><input type="date" id="tl-tgl" class="sinp" style="width:auto;font-size:11px;" onchange="document.getElementById('tl-all').checked=false;renderTrackLoad()"/><label style="font-size:10px;display:flex;align-items:center;gap:3px;"><input type="checkbox" id="tl-all" onchange="renderTrackLoad()"/> sebulan</label></span></div>
+    <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Buyer</th><th>Tgl Order</th><th>Tgl Muat</th><th class="r">Volume (kg)</th><th>Tanki</th><th>Plat</th><th>Status</th></tr></thead><tbody id="tl-sudah"></tbody></table></div>
+  </div>
 <div id="tab-reports" style="display:none">
   <div style="font-size:15px;font-weight:700;margin-bottom:4px;">Monthly Reports</div>
   <div class="frow mt10" style="margin-bottom:12px;">
@@ -2304,6 +2311,55 @@ function exportDischarge(){
   XLSX.utils.book_append_sheet(wb,w1,'Belum Dibongkar');
   XLSX.utils.book_append_sheet(wb,w2,'Sudah Dibongkar');
   XLSX.writeFile(wb,'TrackingDischarge_'+S.hub+'_'+td()+'.xlsx');toast('⬇️ Tracking discharge terunduh');
+}
+
+// ---- TRACKING MUAT (SALES / OUTBOUND) ----
+function _obReached(t,st){return t.stage==='done'||_obIdx(t.stage)>=_obIdx(st);}
+// Tanggal muat: dari stage-log saat tahap 'muat' diselesaikan; fallback ke tanggal transaksi
+// (baris histori hasil import tidak punya log, tanggal invoice = tanggal kirim).
+function _muatDate(t){
+  const lg=(t.log||[]).find(l=>l.s==='muat');
+  return lg?String(lg.at||'').slice(0,10):String(t.tanggal||'-');
+}
+let _tlBelum=[],_tlSudah=[];
+function renderTrackLoad(){
+  const b=document.getElementById('tl-belum');if(!b)return;
+  const now=new Date();
+  const belum=(S.obs||[]).filter(t=>t.hub===S.hub&&['po_buyer','prepay','muat'].indexOf(t.stage)>=0);
+  belum.sort((a,b2)=>String(a.tanggal||'').localeCompare(String(b2.tanggal||'')));
+  _tlBelum=belum.map(function(t){
+    const umur=Math.max(0,Math.round((now-new Date(t.tanggal))/86400000));
+    return {buyer:t.buyer||'-',tgl:t.tanggal,vol:Math.round(pn(t.vol_kg)),umur:umur,tahap:t.stage,id:t.id};
+  });
+  b.innerHTML=_tlBelum.length?_tlBelum.map(function(r){
+    return '<tr style="cursor:pointer;'+(r.umur>=2?'background:rgba(212,42,79,.08);':'')+'" onclick="openOb(\''+r.id+'\')"><td style="font-weight:600;">'+crmEsc(r.buyer)+'</td><td class="mono" style="font-size:10px;">'+r.tgl+'</td><td class="r mono">'+f(r.vol)+'</td><td class="r mono" style="color:'+(r.umur>=2?'var(--red)':'inherit')+';">'+r.umur+'</td><td><span class="badge b-yellow">'+r.tahap+'</span></td></tr>';
+  }).join(''):'<tr><td colspan="5" style="text-align:center;padding:12px;color:var(--text3);">Semua order buyer sudah dimuat. ✅</td></tr>';
+  const _tgEl=document.getElementById('tl-tgl');if(_tgEl&&!_tgEl.value)_tgEl.value=td();
+  const _all=document.getElementById('tl-all');const _pakaiBulan=_all&&_all.checked;
+  const _tglPilih=(_tgEl&&_tgEl.value)||td();const mm=_tglPilih.slice(0,7);
+  const sudah=(S.obs||[]).filter(function(t){
+    if(t.hub!==S.hub||!_obReached(t,'do_keluar'))return false;
+    const md=_muatDate(t);const ref=(md&&md!=='-')?md:String(t.tanggal||'');
+    return _pakaiBulan?ref.slice(0,7)===mm:ref===_tglPilih;
+  });
+  sudah.sort((a,b2)=>String(b2.tanggal||'').localeCompare(String(a.tanggal||'')));
+  _tlSudah=sudah.map(t=>({buyer:t.buyer||'-',tgl:t.tanggal,muat:_muatDate(t),vol:Math.round(pn(t.vol_kg)),tanki:t.container_code||'-',plat:t.muat_plat||'-',lunas:(t.lunas?'LUNAS':'BELUM'),id:t.id}));
+  const _inf=document.getElementById('tl-info');
+  if(_inf){const _tot=_tlSudah.reduce(function(a,r){return a+pn(r.vol);},0);_inf.textContent='('+_tlSudah.length+' muat · '+f(Math.round(_tot))+' kg · '+(_pakaiBulan?'bulan '+mm:_tglPilih)+')';}
+  const sEl=document.getElementById('tl-sudah');
+  sEl.innerHTML=_tlSudah.length?_tlSudah.map(function(r){
+    return '<tr style="cursor:pointer;" onclick="openOb(\''+r.id+'\')"><td>'+crmEsc(r.buyer)+'</td><td class="mono" style="font-size:10px;">'+r.tgl+'</td><td class="mono" style="font-size:10px;">'+r.muat+'</td><td class="r mono">'+f(r.vol)+'</td><td>'+crmEsc(r.tanki)+'</td><td class="mono" style="font-size:10px;">'+crmEsc(r.plat)+'</td><td><span class="badge '+(r.lunas==='LUNAS'?'b-green':'b-yellow')+'">'+r.lunas+'</span></td></tr>';
+  }).join(''):'<tr><td colspan="7" style="text-align:center;padding:12px;color:var(--text3);">Belum ada pemuatan pada periode ini.</td></tr>';
+}
+function exportLoad(){
+  renderTrackLoad();
+  if(!window.XLSX){toast('Engine Excel belum termuat','err');return;}
+  const wb=XLSX.utils.book_new();
+  const w1=XLSX.utils.aoa_to_sheet([['Buyer','Tgl Order','Volume (kg)','Umur (hari)','Tahap']].concat(_tlBelum.map(r=>[r.buyer,r.tgl,r.vol,r.umur,r.tahap])));
+  const w2=XLSX.utils.aoa_to_sheet([['Buyer','Tgl Order','Tgl Muat','Volume (kg)','Tanki','Plat','Status']].concat(_tlSudah.map(r=>[r.buyer,r.tgl,r.muat,r.vol,r.tanki,r.plat,r.lunas])));
+  XLSX.utils.book_append_sheet(wb,w1,'Belum Dimuat');
+  XLSX.utils.book_append_sheet(wb,w2,'Sudah Dimuat');
+  XLSX.writeFile(wb,'TrackingMuat_'+S.hub+'_'+td()+'.xlsx');toast('⬇️ Tracking muat terunduh');
 }
 
 // ---- ⑬ KARTU STOK PER KATEGORI ----
@@ -4122,7 +4178,7 @@ async function submitReturn(){
 // ---- RENDER WAREHOUSE ----
 function renderWarehouse(){
   const hub=S.hub;
-  try{renderOsPagi();renderOpnameForm();renderWhDash();renderDailyStock();renderTrackDischarge();const _dlb=document.getElementById('dl-crm-buy2');if(_dlb)_dlb.innerHTML=(S.crm||[]).filter(c=>c.type==='buyer').map(c=>'<option>'+crmEsc(c.name)+'</option>').join('');}catch(e){}
+  try{renderOsPagi();renderOpnameForm();renderWhDash();renderDailyStock();renderTrackDischarge();renderTrackLoad();const _dlb=document.getElementById('dl-crm-buy2');if(_dlb)_dlb.innerHTML=(S.crm||[]).filter(c=>c.type==='buyer').map(c=>'<option>'+crmEsc(c.name)+'</option>').join('');}catch(e){}
   const wh=document.getElementById('wh-hub');if(wh)wh.textContent=hub;
   // dates default
   ['r-tgl','o-tgl','am-tgl','rt-tgl'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.value)e.value=td();});
@@ -4173,9 +4229,14 @@ function _monthRange(){
 }
 function _inMonth(d,m){return d&&String(d).slice(0,7)===m;}
 
-function _plData(hub,m){
-  // Revenue: sales settled (lunas) in month
-  const sales=S.obs.filter(t=>t.hub===hub&&_inMonth(t.lunas_at||t.tanggal,m)&&pn(t.vol_kg)>0);
+// Tanggal acuan penjualan menurut basis pengakuan:
+//  'kirim' = akrual, revenue diakui saat barang dimuat/dikirim (DP jadi uang muka)
+//  'lunas' = kas, revenue diakui saat pelunasan diterima
+function _obRefDate(t,basis){return basis==='kirim'?_muatDate(t):(t.lunas_at||t.tanggal);}
+function _plData(hub,m,basis){
+  basis=basis||'lunas';
+  // Revenue: penjualan yang jatuh pada bulan ini menurut basis terpilih
+  const sales=S.obs.filter(t=>t.hub===hub&&_inMonth(_obRefDate(t,basis),m)&&pn(t.vol_kg)>0);
   const revenue=sales.reduce((a,t)=>a+pn(t.nilai_kontrak),0);
   const volSold=sales.reduce((a,t)=>a+pn(t.vol_kg),0);
   // COGS via FIFO for sold volume
@@ -4185,18 +4246,22 @@ function _plData(hub,m){
   const batches=_fifoBatches(hub);const totKg=batches.reduce((a,b)=>a+b.qty,0);const totVal=batches.reduce((a,b)=>a+b.qty*b.price,0);
   const avg=totKg>0?totVal/totKg:0;
   const lossTank=S.ibs.filter(t=>t.hub===hub&&_inMonth(t.paid_at||t.tanggal,m)).reduce((a,t)=>a+pn(t.loss_tank_kg),0);
-  const lossTruck=S.obs.filter(t=>t.hub===hub&&_inMonth(t.lunas_at||t.tanggal,m)).reduce((a,t)=>a+pn(t.loss_truck_kg),0);
+  const lossTruck=S.obs.filter(t=>t.hub===hub&&_inMonth(_obRefDate(t,basis),m)).reduce((a,t)=>a+pn(t.loss_truck_kg),0);
   const lossVal=(lossTank+lossTruck)*avg;
   // variable cost (per-transaction) + expenses by category
   const varCost=S.ibs.filter(t=>t.hub===hub&&_inMonth(t.paid_at||t.tanggal,m)).reduce((a,t)=>a+pn(t.var_cost_idr),0)
-              +S.obs.filter(t=>t.hub===hub&&_inMonth(t.lunas_at||t.tanggal,m)).reduce((a,t)=>a+pn(t.var_cost_idr),0);
+              +S.obs.filter(t=>t.hub===hub&&_inMonth(_obRefDate(t,basis),m)).reduce((a,t)=>a+pn(t.var_cost_idr),0);
+  // Memo: uang muka (DP) yang diterima bulan ini — bukan revenue pada basis akrual
+  const dpIn=S.obs.filter(t=>t.hub===hub&&pn(t.prepay_amt)>0&&_inMonth(t.prepay_date||t.tanggal,m)).reduce((a,t)=>a+pn(t.prepay_amt),0);
+  // Memo: DP yang diterima di bulan SEBELUMNYA tapi barang baru dikirim bulan ini
+  const dpEarlier=sales.filter(t=>pn(t.prepay_amt)>0&&t.prepay_date&&String(t.prepay_date).slice(0,7)<m).reduce((a,t)=>a+pn(t.prepay_amt),0);
   // expenses by category
   const exps=S.expenses.filter(e=>e.hub===hub&&_inMonth(e.tgl,m));
   const byCat={};exps.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+pn(e.amount);});
   const expTotal=exps.reduce((a,e)=>a+pn(e.amount),0);
   const grossProfit=revenue-cogs-lossVal-varCost;
   const netProfit=grossProfit-expTotal;
-  return {revenue,volSold,cogs,lossTank,lossTruck,lossVal,varCost,byCat,expTotal,grossProfit,netProfit,avg};
+  return {revenue,volSold,cogs,lossTank,lossTruck,lossVal,varCost,byCat,expTotal,grossProfit,netProfit,avg,dpIn,dpEarlier,nTx:sales.length};
 }
 
 function renderReports(){
@@ -4208,22 +4273,46 @@ function renderReports(){
   const el=document.getElementById('rep-body');if(!el)return;
   if(type==='arap'||type==='supplier'){renderExtraReport(type,hub,m,el);return;}
   if(type==='pl'){
-    const d=_plData(hub,m);
-    let h='<div class="card"><div style="font-weight:800;font-size:14px;margin-bottom:10px;">P&L — '+hub+' · '+m+'</div>';
-    h+='<table class="tbl"><tbody>';
-    h+='<tr><td><b>Revenue (Sales settled)</b></td><td class="r mono" style="color:var(--green);">'+fR(d.revenue)+'</td></tr>';
-    h+='<tr><td style="padding-left:20px;">Volume sold</td><td class="r mono">'+f(d.volSold)+' kg</td></tr>';
-    h+='<tr><td><b>COGS (FIFO per batch)</b></td><td class="r mono" style="color:var(--red);">('+f(d.cogs)+')</td></tr>';
-    h+='<tr><td><b>Losses (tank '+f(d.lossTank)+'kg + truck '+f(d.lossTruck)+'kg)</b></td><td class="r mono" style="color:var(--red);">('+f(d.lossVal)+')</td></tr>';
-    h+='<tr><td><b>Variable Cost</b></td><td class="r mono" style="color:var(--red);">('+f(d.varCost)+')</td></tr>';
-    h+='<tr style="border-top:2px solid var(--bg3);"><td><b>GROSS PROFIT</b></td><td class="r mono" style="font-weight:800;color:'+(d.grossProfit>=0?'var(--green)':'var(--red)')+';">'+fR(d.grossProfit)+'</td></tr>';
-    h+='<tr><td colspan="2" style="padding-top:10px;font-weight:700;color:var(--text2);font-size:11px;">OPERATING EXPENSES BY CATEGORY</td></tr>';
-    const cats=Object.keys(d.byCat).sort();
-    if(cats.length)cats.forEach(c=>{h+='<tr><td style="padding-left:20px;">'+c+'</td><td class="r mono" style="color:var(--red);">('+f(d.byCat[c])+')</td></tr>';});
-    else h+='<tr><td style="padding-left:20px;color:var(--text3);">No expenses</td><td class="r">-</td></tr>';
-    h+='<tr><td><b>Total Expenses</b></td><td class="r mono" style="color:var(--red);">('+f(d.expTotal)+')</td></tr>';
-    h+='<tr style="border-top:2px solid var(--bg3);"><td><b>NET PROFIT</b></td><td class="r mono" style="font-weight:800;font-size:14px;color:'+(d.netProfit>=0?'var(--green)':'var(--red)')+';">'+fR(d.netProfit)+'</td></tr>';
+    const dK=_plData(hub,m,'kirim');   // akrual — diakui saat barang dikirim/dimuat
+    const dL=_plData(hub,m,'lunas');   // kas — diakui saat pelunasan diterima
+    const neg=function(v){return '<span style="color:var(--red);">('+f(v)+')</span>';};
+    const row=function(label,vK,vL,opt){
+      opt=opt||{};
+      const st=opt.bold?'font-weight:800;':'';
+      const tr=opt.line?' style="border-top:2px solid var(--bg3);"':'';
+      return '<tr'+tr+'><td'+(opt.indent?' style="padding-left:20px;"':'')+'>'+(opt.bold?'<b>'+label+'</b>':label)+'</td>'+
+             '<td class="r mono" style="'+st+(opt.color||'')+'">'+vK+'</td>'+
+             '<td class="r mono" style="'+st+(opt.color||'')+'">'+vL+'</td></tr>';
+    };
+    let h='<div class="card"><div style="font-weight:800;font-size:14px;margin-bottom:4px;">P&L — '+hub+' · '+m+'</div>';
+    h+='<div class="mut" style="font-size:10px;margin-bottom:10px;">Dua basis pengakuan ditampilkan berdampingan. <b>Pengiriman</b> = akrual (revenue saat barang dimuat/DO keluar; DP dari bulan lain jadi uang muka). <b>Pelunasan</b> = kas (revenue saat dana masuk).</div>';
+    h+='<div style="overflow-x:auto;"><table class="tbl"><thead><tr><th></th><th class="r">📦 Basis Pengiriman</th><th class="r">💰 Basis Pelunasan</th></tr></thead><tbody>';
+    h+=row('Revenue','<span style="color:var(--green);">'+fR(dK.revenue)+'</span>','<span style="color:var(--green);">'+fR(dL.revenue)+'</span>',{bold:true});
+    h+=row('Jumlah transaksi',dK.nTx,dL.nTx,{indent:true});
+    h+=row('Volume sold',f(dK.volSold)+' kg',f(dL.volSold)+' kg',{indent:true});
+    h+=row('COGS (FIFO per batch)',neg(dK.cogs),neg(dL.cogs),{bold:true});
+    h+=row('Losses (tanki + truk)',neg(dK.lossVal),neg(dL.lossVal),{bold:true});
+    h+=row('Variable Cost',neg(dK.varCost),neg(dL.varCost),{bold:true});
+    h+=row('GROSS PROFIT',
+      '<span style="color:'+(dK.grossProfit>=0?'var(--green)':'var(--red)')+';">'+fR(dK.grossProfit)+'</span>',
+      '<span style="color:'+(dL.grossProfit>=0?'var(--green)':'var(--red)')+';">'+fR(dL.grossProfit)+'</span>',{bold:true,line:true});
+    h+='<tr><td colspan="3" style="padding-top:10px;font-weight:700;color:var(--text2);font-size:11px;">OPERATING EXPENSES BY CATEGORY</td></tr>';
+    const cats=Object.keys(dK.byCat).sort();
+    if(cats.length)cats.forEach(c=>{h+='<tr><td style="padding-left:20px;">'+c+'</td><td class="r mono" colspan="2" style="color:var(--red);">('+f(dK.byCat[c])+')</td></tr>';});
+    else h+='<tr><td style="padding-left:20px;color:var(--text3);">No expenses</td><td class="r" colspan="2">-</td></tr>';
+    h+='<tr><td><b>Total Expenses</b></td><td class="r mono" colspan="2" style="color:var(--red);">('+f(dK.expTotal)+')</td></tr>';
+    h+=row('NET PROFIT',
+      '<span style="font-size:14px;color:'+(dK.netProfit>=0?'var(--green)':'var(--red)')+';">'+fR(dK.netProfit)+'</span>',
+      '<span style="font-size:14px;color:'+(dL.netProfit>=0?'var(--green)':'var(--red)')+';">'+fR(dL.netProfit)+'</span>',{bold:true,line:true});
     h+='</tbody></table></div>';
+    h+='<div class="sect-t mt10" style="border:none;">💵 Memo Uang Muka (DP) — bukan revenue pada basis pengiriman</div>';
+    h+='<table class="tbl"><tbody>';
+    h+='<tr><td>DP diterima bulan ini</td><td class="r mono" style="color:var(--yellow);">'+fR(dK.dpIn)+'</td></tr>';
+    h+='<tr><td>DP bulan sebelumnya, barang dikirim bulan ini</td><td class="r mono" style="color:var(--cyan);">'+fR(dK.dpEarlier)+'</td></tr>';
+    h+='</tbody></table>';
+    const selisih=dK.netProfit-dL.netProfit;
+    if(Math.abs(selisih)>0)h+='<div class="alert a-info mt10" style="font-size:11px;">Selisih net profit antar-basis: <b class="mono">'+fR(Math.abs(selisih))+'</b> — berasal dari transaksi yang tanggal kirim dan tanggal lunasnya jatuh di bulan berbeda.</div>';
+    h+='</div>';
     el.innerHTML=h;
   }else if(type==='opname'){
     const conts=_conts(hub);
@@ -4271,10 +4360,23 @@ function exportReportXLS(){
   const type=document.getElementById('rep-type').value;const {m}=_monthRange();const hub=S.hub;
   let rows=[];
   if(type==='pl'){
-    const d=_plData(hub,m);
-    rows=[['P&L',hub,m],[],['Revenue',d.revenue],['Volume sold (kg)',d.volSold],['COGS (FIFO)',-d.cogs],['Losses value',-d.lossVal],['  Tank loss kg',d.lossTank],['  Truck loss kg',d.lossTruck],['Variable cost',-d.varCost],['GROSS PROFIT',d.grossProfit],[],['EXPENSES BY CATEGORY']];
+    const dK=_plData(hub,m,'kirim');const d=_plData(hub,m,'lunas');
+    rows=[['P&L',hub,m],[],['','Basis Pengiriman','Basis Pelunasan'],
+      ['Revenue',dK.revenue,d.revenue],
+      ['Jumlah transaksi',dK.nTx,d.nTx],
+      ['Volume sold (kg)',dK.volSold,d.volSold],
+      ['COGS (FIFO)',-dK.cogs,-d.cogs],
+      ['Losses value',-dK.lossVal,-d.lossVal],
+      ['  Tank loss kg',dK.lossTank,d.lossTank],
+      ['  Truck loss kg',dK.lossTruck,d.lossTruck],
+      ['Variable cost',-dK.varCost,-d.varCost],
+      ['GROSS PROFIT',dK.grossProfit,d.grossProfit],[],['EXPENSES BY CATEGORY']];
     Object.keys(d.byCat).sort().forEach(c=>rows.push([c,-d.byCat[c]]));
-    rows.push(['Total Expenses',-d.expTotal]);rows.push(['NET PROFIT',d.netProfit]);
+    rows.push(['Total Expenses',-d.expTotal]);
+    rows.push(['NET PROFIT',dK.netProfit,d.netProfit]);
+    rows.push([]);rows.push(['MEMO UANG MUKA (DP)']);
+    rows.push(['DP diterima bulan ini',dK.dpIn]);
+    rows.push(['DP bulan sebelumnya, kirim bulan ini',dK.dpEarlier]);
   }else if(type==='opname'){
     rows=[['Stock Opname',hub,m],[],['Container','Type','Product','Book(kg)','Sounding(kg)','Diff(kg)']];
     _conts(hub).forEach(c=>{const op=S.opening.filter(o=>o.hub===hub&&o.container_code===c.code&&_inMonth(o.tgl,m)).sort((a,b)=>String(b.tgl).localeCompare(String(a.tgl)))[0];rows.push([c.code,c.ctype,c.product,pn(c.current_kg),op?pn(op.sounding_kg):'',op?pn(op.diff_kg):'']);});

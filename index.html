@@ -333,6 +333,7 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
     <div class="frow mt10">
       <div class="fg"><label>Date<span class="req">*</span></label><input type="date" id="exp-tgl"/></div>
       <div class="fg"><label>Cost Type<span class="req">*</span></label><select id="exp-ctype"><option value="Fixed">Fixed Cost</option><option value="Variable">Variable Cost</option></select></div>
+      <div class="fg"><label>Dibayar dari rekening<span class="req">*</span> <span style="font-weight:400;color:var(--text3);font-size:9px;">— agar saldo bank ikut terpotong</span></label><select id="exp-acc"></select></div>
       <div class="fg"><label>Kategori CoA<span class="req">*</span></label><select id="exp-cat" onchange="coaPick()">
         <option value="">— pilih akun / pick account —</option>
         <optgroup label="TETAP / FIXED (61xx)">
@@ -383,6 +384,7 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
   <div class="g2 mb10">
     <div class="card c-red" style="border-color:var(--red);"><div class="card-t">💸 Money Spent on Stock</div><div class="card-v mono" id="inv-spent" style="font-size:16px;color:var(--red);">Rp 0</div><div class="card-s" id="inv-spent-s">paid to suppliers</div></div>
     <div class="card c-yellow"><div class="card-t">⏳ Committed (Unpaid Purchases)</div><div class="card-v mono" id="inv-commit" style="font-size:14px;">Rp 0</div><div class="card-s">received but not yet paid</div></div>
+    <div class="card c-red"><div class="card-t">↩️ Nilai Stok Reject (Return Buyer)</div><div class="card-v mono" id="inv-reject" style="font-size:14px;">Rp 0</div><div class="card-s" id="inv-reject-s">HPP FIFO + logistik</div></div>
   </div>
   <div class="sect-t">Stock Movement Log</div>
   <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Date</th><th>Type</th><th>Ref / Counterparty</th><th class="r">In (Kg)</th><th class="r">Out (Kg)</th><th class="r">Balance (Kg)</th><th class="r">Value</th></tr></thead><tbody id="inv-tb"></tbody></table></div>
@@ -486,17 +488,22 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
   </div>
 
   <div id="wh-open" class="wh-pane" style="display:none">
-    <div class="card mb10"><div class="card-t">🌅 Daily Opening Stock (Sounding vs Book)</div>
-      <div class="frow mt10">
-        <div class="fg"><label>Date</label><input type="date" id="o-tgl"/></div>
-        <div class="fg"><label>Container</label><select id="o-cont"></select></div>
-      </div>
-      <div class="frow">
-        <div class="fg"><label>Book Stock (Kg)</label><input type="number" id="o-book" placeholder="system" readonly/></div>
-        <div class="fg"><label>Physical / Sounding (Kg)<span class="req">*</span></label><input type="number" id="o-sound" placeholder="0"/></div>
-        <div class="fg" style="justify-content:flex-end;"><label>&nbsp;</label><button class="btn btn-green" onclick="submitOpening()">Save</button></div>
-      </div>
-      <div class="mut" style="font-size:10px;">Difference (Book − Sounding) is recorded to spot losses/discrepancies.</div>
+    <div class="card mb10"><div class="card-t">🌅 Opening Stock Hari Ini <span style="font-weight:400;font-size:9px;color:var(--text3);">— dibaca dari Opening Stock Pagi, tidak perlu isi ulang</span></div>
+      <div class="alert a-info mt10" style="font-size:11px;">Data di bawah ini otomatis mengikuti isian <b>📋 Opening Stock Pagi</b> di atas. Cukup isi sekali di sana.</div>
+      <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Container</th><th class="r">Book (Kg)</th><th class="r">Sounding (Kg)</th><th class="r">Diff (Kg)</th><th>Catatan Lab</th></tr></thead><tbody id="os-today-tb"></tbody></table></div>
+      <details style="margin-top:10px;">
+        <summary style="cursor:pointer;font-size:11px;color:var(--text3);">✏️ Koreksi / isi susulan tanggal lampau</summary>
+        <div class="mut" style="font-size:10px;margin-top:8px;">Hanya untuk tanggal yang <b>terlewat</b> atau perlu dikoreksi. Untuk hari ini, gunakan Opening Stock Pagi di atas.</div>
+        <div class="frow mt10">
+          <div class="fg"><label>Date</label><input type="date" id="o-tgl"/></div>
+          <div class="fg"><label>Container</label><select id="o-cont"></select></div>
+        </div>
+        <div class="frow">
+          <div class="fg"><label>Book Stock (Kg)</label><input type="number" id="o-book" placeholder="system" readonly/></div>
+          <div class="fg"><label>Physical / Sounding (Kg)<span class="req">*</span></label><input type="number" id="o-sound" placeholder="0"/></div>
+          <div class="fg" style="justify-content:flex-end;"><label>&nbsp;</label><button class="btn btn-green" onclick="submitOpening()">Save</button></div>
+        </div>
+      </details>
     </div>
     <div class="sect-t">Opening Stock Log</div>
     <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Date</th><th>Container</th><th class="r">Book (Kg)</th><th class="r">Sounding (Kg)</th><th class="r">Diff (Kg)</th><th>By</th></tr></thead><tbody id="open-tb"></tbody></table></div>
@@ -539,7 +546,6 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
     <div class="sect-t">Returns History</div>
     <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Date</th><th class="r">Qty (Kg)</th><th>Spec</th><th class="r">HPP (Rp)</th><th class="r">Logistics</th><th>FIFO Source</th><th>By</th></tr></thead><tbody id="return-tb"></tbody></table></div>
   </div>
-</div>
   <div class="card mb10">
     <div class="card-t" style="display:flex;justify-content:space-between;align-items:center;">🚚 Tracking Discharge — Bongkar <button class="btn btn-ghost btn-sm" onclick="exportDischarge()">⬇️ Excel</button></div>
     <div class="sect-t mt10" style="border:none;">⏳ Belum Dibongkar / Undischarged</div>
@@ -554,6 +560,7 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
     <div class="sect-t mt10" style="border:none;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;"><span>✅ Sudah Dimuat <span id="tl-info" style="font-weight:400;color:var(--text3);font-size:10px;"></span></span><span style="display:flex;gap:6px;align-items:center;font-weight:400;"><input type="date" id="tl-tgl" class="sinp" style="width:auto;font-size:11px;" onchange="document.getElementById('tl-all').checked=false;renderTrackLoad()"/><label style="font-size:10px;display:flex;align-items:center;gap:3px;"><input type="checkbox" id="tl-all" onchange="renderTrackLoad()"/> sebulan</label></span></div>
     <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Buyer</th><th>Tgl Order</th><th>Tgl Muat</th><th class="r">Volume (kg)</th><th>Tanki</th><th>Plat</th><th>Status</th></tr></thead><tbody id="tl-sudah"></tbody></table></div>
   </div>
+</div>
 <div id="tab-reports" style="display:none">
   <div style="font-size:15px;font-weight:700;margin-bottom:4px;">Monthly Reports</div>
   <div class="frow mt10" style="margin-bottom:12px;">
@@ -2070,46 +2077,110 @@ function exportKas(){
 }
 
 // ---- ㉓ SALDO PER REKENING BANK ----
-function bankOutflows(code){
-  const out=[];
+// ════════ BUKU BESAR REKENING — semua uang masuk & keluar dari transaksi ERP ════════
+// Saldo = opening_balance + Σ masuk − Σ keluar, dihitung sejak opening_date.
+// Sumber MASUK : DP buyer (prepay), pelunasan buyer (settlement)
+// Sumber KELUAR: pembayaran supplier (termasuk cicilan), expenses
+function bankMoves(code,sinceDate){
+  const mv=[];const sd=sinceDate||'';
+  // KELUAR — pembayaran ke supplier
   (S.ibs||[]).forEach(function(t){
-    (t.payments||[]).forEach(function(p){if((p.acc||'')===code)out.push({tgl:p.date,ref:t.id+' · '+(t.supplier||''),amt:pn(p.amt),by:p.by||''});});
-    if((!t.payments||!t.payments.length)&&t.paid&&(t.pay_from_acc||'')===code&&pn(t.final_paid)>0){out.push({tgl:(t.paid_at||'').slice(0,10),ref:t.id+' · '+(t.supplier||''),amt:pn(t.final_paid),by:''});}
+    if((t.payments||[]).length){
+      t.payments.forEach(function(p){
+        if((p.acc||'')!==code)return;
+        mv.push({tgl:String(p.date||'').slice(0,10),arah:'keluar',jenis:'Beli',ref:t.id+' · '+(t.supplier||''),amt:pn(p.amt)});
+      });
+    }else if(t.paid&&(t.pay_from_acc||'')===code&&pn(t.final_paid)>0){
+      mv.push({tgl:String(t.paid_at||'').slice(0,10),arah:'keluar',jenis:'Beli',ref:t.id+' · '+(t.supplier||''),amt:pn(t.final_paid)});
+    }
   });
-  out.sort(function(a,b){return String(b.tgl||'').localeCompare(String(a.tgl||''));});
-  return out;
+  // KELUAR — expenses (butuh kolom acc di tabel expenses)
+  (S.expenses||[]).forEach(function(e){
+    if((e.acc||'')!==code)return;
+    mv.push({tgl:String(e.tgl||'').slice(0,10),arah:'keluar',jenis:'Expense',ref:(e.category||'-')+' · '+(e.description||''),amt:pn(e.amount)});
+  });
+  // MASUK — DP / prepayment dari buyer
+  (S.obs||[]).forEach(function(t){
+    if((t.prepay_to_acc||'')===code&&pn(t.prepay_amt)>0){
+      mv.push({tgl:String(t.prepay_date||t.tanggal||'').slice(0,10),arah:'masuk',jenis:'DP Buyer',ref:t.id+' · '+(t.buyer||''),amt:pn(t.prepay_amt)});
+    }
+    // MASUK — pelunasan (sisa setelah DP)
+    if((t.recv_to_acc||'')===code&&t.lunas){
+      const sisa=pn(t.nilai_kontrak)-pn(t.prepay_amt);
+      if(sisa>0)mv.push({tgl:String(t.lunas_at||t.tanggal||'').slice(0,10),arah:'masuk',jenis:'Pelunasan',ref:t.id+' · '+(t.buyer||''),amt:sisa});
+    }
+  });
+  const rows=mv.filter(function(m){return m.amt>0&&(!sd||String(m.tgl||'')>=sd);});
+  rows.sort(function(a,b){return String(b.tgl||'').localeCompare(String(a.tgl||''));});
+  return rows;
 }
+function bankSaldo(b){
+  const sd=String(b.opening_date||'').slice(0,10);
+  const mv=bankMoves(b.code,sd);
+  let masuk=0,keluar=0;
+  mv.forEach(function(m){if(m.arah==='masuk')masuk+=m.amt;else keluar+=m.amt;});
+  const awal=pn(b.opening_balance);
+  return {awal:awal,masuk:masuk,keluar:keluar,saldo:awal+masuk-keluar,moves:mv,sejak:sd};
+}
+// dipertahankan untuk pemakaian lama (hanya arus keluar)
+function bankOutflows(code){return bankMoves(code).filter(function(m){return m.arah==='keluar';});}
 let _bankRows=[];
 function renderBank(){
   const el=document.getElementById('bank-cards');if(!el)return;
   _bankRows=[];
   el.innerHTML=(S.banks||[]).map(function(b){
-    const outs=bankOutflows(b.code);
-    const tot=outs.reduce(function(a,o){return a+o.amt;},0);
-    const saldo=pn(b.saldo_awal)-tot;
-    outs.forEach(function(o){_bankRows.push({acc:b.code,tgl:o.tgl,ref:o.ref,amt:o.amt});});
+    const bs=bankSaldo(b);
+    bs.moves.forEach(function(o){_bankRows.push({acc:b.code,tgl:o.tgl,arah:o.arah,jenis:o.jenis,ref:o.ref,amt:o.amt});});
     const editBtn=can('Finance')?'<button class="btn btn-ghost btn-sm" style="font-size:8px;padding:2px 5px;" onclick="event.stopPropagation();setSaldoAwal(\''+b.id+'\')">set awal</button>':'';
-    const rep=(function(){for(const k of (S.kas||[])){if(k.hub!==S.hub)continue;const v=k.bank_balances&&k.bank_balances[b.code];if(v!=null)return {v:pn(v),tgl:k.tgl};}return null;})();return '<div class="card" style="cursor:pointer;" onclick="showBankMoves(\''+crmEsc(b.code)+'\')"><div class="card-t">'+crmEsc(b.code)+(b.is_nonppn?' <span style="color:var(--yellow);font-size:8px;">non-PPN</span>':'')+' '+editBtn+'</div><div class="card-v mono" style="font-size:13px;color:'+(saldo<0?'var(--red)':'var(--green)')+';">'+fRb(saldo)+'</div><div class="card-s">awal '+fRb(pn(b.saldo_awal))+' − keluar '+fRb(tot)+(rep?'<br>lapor pagi '+rep.tgl+': <b>'+fRb(rep.v)+'</b>':'')+'</div></div>';
+    const rep=(function(){for(const k of (S.kas||[])){if(k.hub!==S.hub)continue;const v=k.bank_balances&&k.bank_balances[b.code];if(v!=null)return {v:pn(v),tgl:k.tgl};}return null;})();
+    const gap=rep?(rep.v-bs.saldo):null;
+    return '<div class="card" style="cursor:pointer;" onclick="showBankMoves(\''+crmEsc(b.code)+'\')">'+
+      '<div class="card-t">'+crmEsc(b.code)+(b.is_nonppn?' <span style="color:var(--yellow);font-size:8px;">non-PPN</span>':'')+' '+editBtn+'</div>'+
+      '<div class="card-v mono" style="font-size:13px;color:'+(bs.saldo<0?'var(--red)':'var(--green)')+';">'+fRb(bs.saldo)+'</div>'+
+      '<div class="card-s">awal '+fRb(bs.awal)+(bs.sejak?' <span style="opacity:.6;">('+bs.sejak+')</span>':'')+
+        '<br><span style="color:var(--green);">+ masuk '+fRb(bs.masuk)+'</span> · <span style="color:var(--red);">− keluar '+fRb(bs.keluar)+'</span>'+
+        (rep?'<br>lapor pagi '+rep.tgl+': <b>'+fRb(rep.v)+'</b>'+
+          (Math.abs(gap)>1?' <span style="color:var(--red);">selisih '+fRb(Math.abs(gap))+'</span>':' <span style="color:var(--green);">cocok ✅</span>'):'')+
+      '</div></div>';
   }).join('')||'<div class="mut" style="font-size:11px;">Belum ada rekening di Admin → Bank Accounts.</div>';
 }
 async function setSaldoAwal(bid){
   if(!can('Finance')){toast('Finance/Admin only','err');return;}
   const b=(S.banks||[]).find(x=>String(x.id)===String(bid));if(!b)return;
-  const v=prompt('Saldo awal rekening '+b.code+' (Rp):',b.saldo_awal||'');
+  const v=prompt('Saldo awal rekening '+b.code+' (Rp):',b.opening_balance||'');
   if(v===null)return;
-  const {error}=await sb.from('bank_accounts').update({saldo_awal:pn(v)}).eq('id',b.id);
+  const dRaw=prompt('Berlaku sejak tanggal (YYYY-MM-DD) — mutasi sebelum tanggal ini tidak dihitung:',String(b.opening_date||'').slice(0,10)||'2026-01-01');
+  if(dRaw===null)return;
+  const d=String(dRaw).trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d)){toast('Format tanggal harus YYYY-MM-DD','err');return;}
+  const {error}=await sb.from('bank_accounts').update({opening_balance:pn(v),opening_date:d}).eq('id',b.id);
   if(error){toast('Gagal: '+error.message,'err');return;}
-  b.saldo_awal=pn(v);await audit('BANK_SALDO_SET','bank_accounts',b.id,{code:b.code},pn(v));
+  b.opening_balance=pn(v);b.opening_date=d;await audit('BANK_SALDO_SET','bank_accounts',b.id,{code:b.code,sejak:d},pn(v));
   toast('Saldo awal '+b.code+' diset');renderBank();
 }
 function showBankMoves(code){
   const el=document.getElementById('bank-moves');if(!el)return;
-  const outs=bankOutflows(code);
-  el.innerHTML='<div class="sect-t">Riwayat keluar — '+crmEsc(code)+'</div><div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Tanggal</th><th>Referensi</th><th class="r">Jumlah</th></tr></thead><tbody>'+
-    (outs.length?outs.map(function(o){return '<tr><td class="mono" style="font-size:10px;">'+(o.tgl||'-')+'</td><td style="font-size:10px;">'+crmEsc(o.ref)+'</td><td class="r mono">'+fR(o.amt)+'</td></tr>';}).join(''):'<tr><td colspan="3" style="text-align:center;padding:12px;color:var(--text3);">Belum ada pembayaran dari rekening ini.</td></tr>')+
+  const b=(S.banks||[]).find(function(x){return x.code===code;});
+  if(!b){el.innerHTML='';return;}
+  const bs=bankSaldo(b);
+  // urut lama→baru supaya saldo berjalan bisa dihitung menurun
+  const asc=bs.moves.slice().sort(function(a,c){return String(a.tgl||'').localeCompare(String(c.tgl||''));});
+  let run=bs.awal;const withRun=asc.map(function(m){run+=(m.arah==='masuk'?m.amt:-m.amt);return Object.assign({},m,{saldo:run});});
+  withRun.reverse();
+  el.innerHTML='<div class="sect-t">Mutasi rekening — '+crmEsc(code)+'</div>'+
+    '<div class="mut" style="font-size:10px;margin-bottom:6px;">Saldo awal '+fRb(bs.awal)+(bs.sejak?' per '+bs.sejak:'')+' · masuk '+fRb(bs.masuk)+' · keluar '+fRb(bs.keluar)+' · <b>saldo '+fRb(bs.saldo)+'</b></div>'+
+    '<div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Tanggal</th><th>Jenis</th><th>Referensi</th><th class="r">Masuk</th><th class="r">Keluar</th><th class="r">Saldo</th></tr></thead><tbody>'+
+    (withRun.length?withRun.map(function(o){
+      return '<tr><td class="mono" style="font-size:10px;">'+(o.tgl||'-')+'</td>'+
+        '<td><span class="badge '+(o.arah==='masuk'?'b-green':'b-yellow')+'">'+crmEsc(o.jenis)+'</span></td>'+
+        '<td style="font-size:10px;">'+crmEsc(o.ref)+'</td>'+
+        '<td class="r mono" style="color:var(--green);">'+(o.arah==='masuk'?fR(o.amt):'-')+'</td>'+
+        '<td class="r mono" style="color:var(--red);">'+(o.arah==='keluar'?fR(o.amt):'-')+'</td>'+
+        '<td class="r mono" style="font-weight:700;">'+fR(o.saldo)+'</td></tr>';
+    }).join(''):'<tr><td colspan="6" style="text-align:center;padding:12px;color:var(--text3);">Belum ada mutasi pada rekening ini.</td></tr>')+
     '</tbody></table></div>';
 }
-function exportBank(){renderBank();_xlsExport(_bankRows,['Rekening','Tanggal','Referensi','Jumlah (Rp)'],['acc','tgl','ref','amt'],'SaldoBank_'+S.hub+'_'+td()+'.xlsx');}
+function exportBank(){renderBank();_xlsExport(_bankRows,['Rekening','Tanggal','Arah','Jenis','Referensi','Jumlah (Rp)'],['acc','tgl','arah','jenis','ref','amt'],'MutasiBank_'+S.hub+'_'+td()+'.xlsx');}
 
 // ---- ㉔ TRACING REKON NON-PPN ----
 function renderNonPpn(){
@@ -2164,6 +2235,21 @@ function katBook(k){
 // ---- OPENING STOCK PAGI WAJIB: per tanki (buku+lab) + kategori Semi/Ampas/Return ----
 const OSP_KATS=['Semi','Ampas','Return Reject Buyer'];
 function ospToday(code){const t=td();return (S.opening||[]).find(o=>o.hub===S.hub&&o.tgl===t&&(o.container_code||'')===code);}
+// Tampilan baca-saja opening stock hari ini — sumbernya sama dgn Opening Stock Pagi (tabel opening_stock).
+function renderOsToday(){
+  const tb=document.getElementById('os-today-tb');if(!tb)return;
+  const t=td();
+  const rows=(S.opening||[]).filter(o=>o.hub===S.hub&&o.tgl===t&&String(o.container_code||'').indexOf('KAT:')!==0);
+  rows.sort((a,b)=>String(a.container_code||'').localeCompare(String(b.container_code||'')));
+  tb.innerHTML=rows.length?rows.map(function(o){
+    const d=pn(o.diff_kg);
+    return '<tr><td style="font-weight:600;">'+crmEsc(o.container_code||'-')+'</td>'+
+      '<td class="r mono">'+f(Math.round(pn(o.book_kg)))+'</td>'+
+      '<td class="r mono">'+f(Math.round(pn(o.sounding_kg)))+'</td>'+
+      '<td class="r mono" style="color:'+(d===0?'inherit':(d>0?'var(--red)':'var(--green)'))+';">'+(d>0?'-':'')+f(Math.abs(Math.round(d)))+'</td>'+
+      '<td style="font-size:10px;">'+crmEsc(o.lab_note||'-')+'</td></tr>';
+  }).join(''):'<tr><td colspan="5" style="text-align:center;padding:12px;color:var(--text3);">Belum ada opening stock hari ini — isi di 📋 Opening Stock Pagi di atas.</td></tr>';
+}
 function renderOsPagi(){
   const tb=document.getElementById('osp-tb');if(!tb)return;
   // jangan rebuild saat user sedang mengetik di form ini
@@ -2248,6 +2334,14 @@ async function saveOpname(){
   });
   if(miss){toast('Fisik/sounding wajib semua baris — '+miss.replace('KAT:','')+' kosong','err');return;}
   if(!rows.length){toast('Tidak ada baris','err');return;}
+  // cegah opname ganda pada tanggal + container yang sama (baseline stok harus tunggal)
+  const dobel=rows.filter(r=>(S.opening||[]).some(o=>o.hub===S.hub&&o.tgl===r.tgl&&(o.container_code||'')===r.container_code&&o.kind==='opname'));
+  if(dobel.length){
+    const sisa=rows.filter(r=>dobel.indexOf(r)<0);
+    if(!sisa.length){toast('⚠️ Opname '+tgl+' sudah tersimpan untuk semua tanki. Tidak diisi ulang.','err');return;}
+    if(!confirm('⚠️ '+dobel.length+' tanki sudah punya opname tgl '+tgl+' dan akan DILEWATI:\n'+dobel.map(r=>'• '+r.container_code).join('\n')+'\n\nLanjut simpan '+sisa.length+' tanki sisanya?'))return;
+    rows.length=0;sisa.forEach(r=>rows.push(r));
+  }
   if(!confirm('Simpan opname '+tgl+' ('+rows.length+' baris)?\nAngka SOUNDING akan menjadi SALDO AWAL perhitungan stok selanjutnya.'))return;
   const {data,error}=await sb.from('opening_stock').insert(rows).select();
   if(error){toast('Gagal: '+error.message,'err');return;}
@@ -2821,8 +2915,10 @@ async function submitExpense(){
   if(!cat){toast('Pilih kategori CoA / CoA category required','err');return;}
   if(cat.indexOf('6299')===0&&!desc){toast('Akun 6299 Lain-lain wajib diisi keterangan / 6299 requires a description','err');return;}
   if(!amt){toast('Amount required','err');return;}
+  const _eacc=document.getElementById('exp-acc');const acc=_eacc?_eacc.value:'';
+  if(!acc){toast('Pilih rekening pembayaran / Select paying account','err');return;}
   if(!_expProof){toast('Receipt/proof is mandatory — please upload kwitansi/bukti','err');return;}
-  const {data,error}=await sb.from('expenses').insert({tgl:tgl,hub:S.hub,category:cat,cost_type:ctype,description:desc,amount:amt,by_user:S.nama,proof_name:_expProof.name,proof_data:_expProof.data}).select();
+  const {data,error}=await sb.from('expenses').insert({tgl:tgl,hub:S.hub,category:cat,cost_type:ctype,description:desc,amount:amt,acc:acc,by_user:S.nama,proof_name:_expProof.name,proof_data:_expProof.data}).select();
   if(error){toast('Save failed: '+error.message,'err');return;}
   if(data&&data[0])S.expenses.unshift(data[0]);
   toast('Expense saved: '+fR(amt));
@@ -2841,6 +2937,8 @@ async function deleteExpense(id){
 }
 function renderExpenses(){
   const dt=document.getElementById('exp-tgl');if(dt&&!dt.value)dt.value=td();
+  const _ea=document.getElementById('exp-acc');
+  if(_ea&&!_ea.options.length)_ea.innerHTML=bankOptions(_ea.value);
   // bangun ulang opsi filter dari kategori yg ada
   const fsel=document.getElementById('exp-fcat');
   const cur=fsel?fsel.value:'';
@@ -2914,6 +3012,15 @@ function renderInventory(){
   setT('inv-val',fRb(c.stockValue));
   setT('inv-spent',fRb(c.spent));setT('inv-spent-s',c.nPaid+' paid purchases');
   setT('inv-commit',fRb(c.committed));
+  // Nilai stok reject (retur dari buyer) — HPP FIFO + biaya logistik retur
+  (function(){
+    const rts=(S.returns||[]).filter(function(r){return r.hub===S.hub;});
+    let nilai=0,kg=0;
+    rts.forEach(function(r){nilai+=pn(r.hpp_idr)+pn(r.logistic_idr);kg+=pn(r.qty_kg);});
+    setT('inv-reject',fRb(nilai));
+    const s=document.getElementById('inv-reject-s');
+    if(s)s.textContent=rts.length?(f(Math.round(kg))+' kg · '+rts.length+' retur · HPP FIFO + logistik'):'Belum ada retur tercatat';
+  })();
 
   let moves=[];
   c.inbs.forEach(t=>moves.push({date:t.paid_at||t.tanggal,type:'IN',ref:t.supplier+' · '+t.id,in:pn(t.netto_kg),out:0,val:pn(t.netto_kg)*(pn(t.harga_aktual)||pn(t.est_harga))}));
@@ -4092,6 +4199,8 @@ async function submitOpening(){
   const sound=pn(document.getElementById('o-sound').value);
   if(!cont){toast('Select container','err');return;}
   const c=S.containers.find(x=>x.code===cont&&x.hub===S.hub);
+  const dup=(S.opening||[]).find(o=>o.hub===S.hub&&o.tgl===tgl&&(o.container_code||'')===cont);
+  if(dup){toast('⚠️ '+cont+' tgl '+tgl+' sudah tercatat ('+f(Math.round(pn(dup.book_kg)))+' kg). Tidak diisi ulang.','err');return;}
   const book=c?pn(c.current_kg):0;
   const diff=book-sound;
   const row={hub:S.hub,tgl:tgl,container_code:cont,book_kg:book,sounding_kg:sound,diff_kg:diff,by_user:S.nama};
@@ -4189,7 +4298,7 @@ async function submitReturn(){
 // ---- RENDER WAREHOUSE ----
 function renderWarehouse(){
   const hub=S.hub;
-  try{renderOsPagi();renderOpnameForm();renderWhDash();renderDailyStock();renderTrackDischarge();renderTrackLoad();const _dlb=document.getElementById('dl-crm-buy2');if(_dlb)_dlb.innerHTML=(S.crm||[]).filter(c=>c.type==='buyer').map(c=>'<option>'+crmEsc(c.name)+'</option>').join('');}catch(e){}
+  try{renderOsPagi();renderOpnameForm();renderWhDash();renderDailyStock();renderTrackDischarge();renderTrackLoad();renderOsToday();const _dlb=document.getElementById('dl-crm-buy2');if(_dlb)_dlb.innerHTML=(S.crm||[]).filter(c=>c.type==='buyer').map(c=>'<option>'+crmEsc(c.name)+'</option>').join('');}catch(e){}
   const wh=document.getElementById('wh-hub');if(wh)wh.textContent=hub;
   // dates default
   ['r-tgl','o-tgl','am-tgl','rt-tgl'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.value)e.value=td();});

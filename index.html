@@ -1309,14 +1309,25 @@ function ibCard(t){
 // ════════════ OUTBOUND PIPELINE ════════════
 function renderOb(q){
   q=(q||'').toLowerCase();
-  const txns=S.obs.filter(t=>t.stage!=='done'&&(q===''||t.buyer.toLowerCase().indexOf(q)>=0||t.id.toLowerCase().indexOf(q)>=0));
+  const searching=q!=='';
+  const txns=S.obs.filter(t=>(searching||t.stage!=='done')&&(q===''||t.buyer.toLowerCase().indexOf(q)>=0||t.id.toLowerCase().indexOf(q)>=0));
   const actS=OB_S.filter(s=>s.id!=='done');
   const board=document.getElementById('ob-board');
-  board.style.gridTemplateColumns='repeat('+actS.length+',minmax(150px,1fr))';
+  board.style.gridTemplateColumns='repeat('+(actS.length+1)+',minmax(150px,1fr))';
   board.innerHTML=actS.map(function(s){
     const cards=txns.filter(t=>t.stage===s.id);
     return '<div class="stage-col"><div class="stage-hdr" style="border-color:var(--purple);"><div class="stage-cnt" style="color:var(--purple);">'+cards.length+'</div><div class="stage-n">'+s.n+'</div><div class="stage-r">'+s.r+'</div></div>'+(cards.length?cards.map(obCard).join(''):'<div class="txcard" style="cursor:default;border-left:none;opacity:.35;text-align:center;font-size:10px;color:var(--text3);">Empty</div>')+'</div>';
   }).join('');
+  // Kolom "Selesai" — transaksi stage=done. Tanpa pencarian: 30 terbaru saja (biar ringan). Dengan pencarian: semua yang cocok.
+  const doneAll=(S.obs||[]).filter(t=>t.stage==='done'&&(q===''||t.buyer.toLowerCase().indexOf(q)>=0||t.id.toLowerCase().indexOf(q)>=0));
+  doneAll.sort((a,b)=>String(b.lunas_at||b.tanggal||'').localeCompare(String(a.lunas_at||a.tanggal||'')));
+  const doneShow=searching?doneAll:doneAll.slice(0,30);
+  const doneNote=(!searching&&doneAll.length>30)?'<div class="txcard" style="cursor:default;border-left:none;text-align:center;font-size:9px;color:var(--text3);">+'+(doneAll.length-30)+' lainnya — ketik nama/ID untuk cari</div>':'';
+  board.innerHTML+='<div class="stage-col"><div class="stage-hdr" style="border-color:var(--green);"><div class="stage-cnt" style="color:var(--green);">'+doneAll.length+'</div><div class="stage-n">✅ Selesai</div><div class="stage-r">Done</div></div>'+(doneShow.length?doneShow.map(obDoneCard).join(''):'<div class="txcard" style="cursor:default;border-left:none;opacity:.35;text-align:center;font-size:10px;color:var(--text3);">Empty</div>')+doneNote+'</div>';
+}
+function obDoneCard(t){
+  const lunasBadge=t.lunas?'<span class="badge b-green" style="margin-top:4px;display:inline-block;">LUNAS</span>':'<span class="badge b-yellow" style="margin-top:4px;display:inline-block;">BELUM LUNAS</span>';
+  return '<div class="txcard outb" onclick="openOb(\''+t.id+'\')"><div class="tx-id">'+t.id+'</div><div class="tx-sup">'+crmEsc(t.buyer||'-')+'</div><div class="tx-kg">'+f(t.vol_kg)+' kg · '+fRb(t.nilai_kontrak||0)+'</div><div style="font-size:9px;color:var(--text3);margin-top:2px;">'+(t.tanggal||'-')+'</div>'+lunasBadge+'</div>';
 }
 function obCard(t){
   const late=obLate(t);

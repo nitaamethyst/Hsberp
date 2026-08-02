@@ -2880,12 +2880,38 @@ async function submitKas(){
 // Expenses, Purchase, Inventory supaya daftar tidak menumpuk panjang.
 function isiPilihanBulan(elId,tanggalList,cb){
   const el=document.getElementById(elId); if(!el) return;
-  const bulan=Array.from(new Set(tanggalList.filter(Boolean).map(t=>String(t).slice(0,7)))).sort().reverse();
-  if(el.options.length===bulan.length+1) return;
-  const keep=el.value;
-  el.innerHTML='<option value="">Semua bulan</option>'
-    +bulan.map(b=>'<option value="'+b+'"'+(keep===b?' selected':'')+'>'+b+'</option>').join('');
-  if(!el._wired){el._wired=true;el.onchange=function(){cb();};}
+  const hit={};
+  tanggalList.filter(Boolean).forEach(function(t){
+    const b=String(t).slice(0,7); hit[b]=(hit[b]||0)+1;
+  });
+  const bulan=Object.keys(hit).sort().reverse();
+  if(el.options.length!==bulan.length+1){
+    const keep=el.value;
+    el.innerHTML='<option value="">Semua bulan ('+tanggalList.filter(Boolean).length+')</option>'
+      +bulan.map(b=>'<option value="'+b+'"'+(keep===b?' selected':'')+'>'+b+' ('+hit[b]+')</option>').join('');
+    if(keep) el.value=keep;
+  }
+  if(!el._wired){
+    el._wired=true;
+    el.onchange=function(){cb();};
+    // Tombol panah: pindah bulan tanpa perlu membuka daftar popup,
+    // karena daftar popup di Android sering terpotong.
+    const nav=document.createElement('span');
+    nav.style.marginLeft='6px';
+    const mk=function(txt,arah){
+      const b=document.createElement('button');
+      b.className='btn btn-ghost btn-sm'; b.textContent=txt;
+      b.style.padding='2px 10px';
+      b.onclick=function(){
+        const i=el.selectedIndex+arah;
+        if(i>=0 && i<el.options.length){el.selectedIndex=i; cb();}
+      };
+      return b;
+    };
+    nav.appendChild(mk('\u2039',-1));
+    nav.appendChild(mk('\u203a',1));
+    el.parentNode.insertBefore(nav,el.nextSibling);
+  }
 }
 
 // Ubah hub satu laporan kas langsung dari tabel.

@@ -4773,10 +4773,24 @@ function renderExtraReport(type,hub,m,el){
 // ---- 24-HOUR PROOF LOCK ----
 // Cari transaksi Finance yang buktinya belum lengkap & sudah lewat 24 jam.
 // Returns array of {id, kind, since_h}. Jika ada, Finance dikunci.
+// ---- TANGGAL MULAI BERLAKU ATURAN 24 JAM ----
+// Aturan bukti 24 jam HANYA berlaku untuk transaksi mulai tanggal ini.
+// Transaksi sebelum tanggal ini = data historis hasil impor (Jan-Jul 2026),
+// tidak pernah punya foto bukti, jadi tidak boleh mengunci Finance.
+// Untuk mengubah masa berlaku, ganti satu tanggal di bawah ini saja.
+const PROOF_RULE_START = '2026-08-01';
+
+// true = transaksi ini data historis, aturan 24 jam dilewati
+function isPreRuleTx(tgl){
+  if(!tgl) return true;                       // tanpa tanggal: jangan kunci
+  return String(tgl).slice(0,10) < PROOF_RULE_START;
+}
+
 function overdueProofItems(){
   const now=Date.now(); const out=[];
   // Pembelian sudah dibayar tapi belum ada bukti transfer
   S.ibs.forEach(function(t){
+    if(isPreRuleTx(t.tanggal||t.paid_at)) return;   // lewati data historis
     if(t.paid && t.paid_at && (!t.docs || !t.docs.bukti_bayar)){
       const h=(now-new Date(t.paid_at).getTime())/3600000;
       if(h>24) out.push({id:t.id, kind:'Payment proof (inbound)', who:t.supplier, since_h:Math.floor(h)});
@@ -4784,6 +4798,7 @@ function overdueProofItems(){
   });
   // Penjualan lunas tapi belum ada bukti pelunasan
   S.obs.forEach(function(t){
+    if(isPreRuleTx(t.tanggal||t.lunas_at)) return;  // lewati data historis
     if(t.lunas && t.lunas_at && (!t.docs || !t.docs.bukti_lunas)){
       const h=(now-new Date(t.lunas_at).getTime())/3600000;
       if(h>24) out.push({id:t.id, kind:'Settlement proof (outbound)', who:t.buyer, since_h:Math.floor(h)});
@@ -4791,6 +4806,7 @@ function overdueProofItems(){
   });
   // Laporan kas dengan petty item tanpa bukti (per-line)
   S.kas.forEach(function(k){
+    if(isPreRuleTx(k.tgl)) return;                  // lewati data historis
     const items=(k.petty_items||[]);
     items.forEach(function(it,idx){
       if(pn(it.amount)>0 && !it.proof_data && k.tgl){
@@ -4800,6 +4816,18 @@ function overdueProofItems(){
     });
   });
   return out;
+}
+
+// Hitung tunggakan data historis - TIDAK mengunci, hanya untuk info GM.
+function preRuleMissingProofCount(){
+  let n=0;
+  S.ibs.forEach(function(t){
+    if(isPreRuleTx(t.tanggal||t.paid_at) && t.paid && (!t.docs || !t.docs.bukti_bayar)) n++;
+  });
+  S.obs.forEach(function(t){
+    if(isPreRuleTx(t.tanggal||t.lunas_at) && t.lunas && (!t.docs || !t.docs.bukti_lunas)) n++;
+  });
+  return n;
 }
 // Gate: panggil sebelum aksi Finance apa pun. Return true jika BOLEH lanjut.
 function financeProofGate(){
@@ -4823,7 +4851,11 @@ function financeProofGate(){
 function proofLockBanner(){
   if(!can('Finance')) return '';
   const od=overdueProofItems();
-  if(!od.length) return '';
+  if(!od.length){
+    const pre=preRuleMissingProofCount();
+    if(!pre) return '';
+    return '<div class="alert a-info" style="font-size:12px;margin-bottom:10px;"><b>\u2139\ufe0f Data historis</b> \u2014 '+pre+' transaksi sebelum '+PROOF_RULE_START+' tanpa foto bukti (hasil impor). Tidak mengunci Finance. / '+pre+' pre-'+PROOF_RULE_START+' records without proof photo. Not blocking.</div>';
+  }
   return '<div class="alert a-warn" style="font-size:12px;margin-bottom:10px;"><b>🔒 Finance Locked</b> — '+od.length+' bukti tertunggak >24 jam. Pembayaran diblokir sampai diupload. / '+od.length+' proof(s) overdue >24h. Payments blocked until uploaded.</div>';
 }
 

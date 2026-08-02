@@ -2910,6 +2910,22 @@ function isiPilihanBulan(elId,tanggalList,cb){
     };
     nav.appendChild(mk('\u2039',-1));
     nav.appendChild(mk('\u203a',1));
+    // ERP hanya memuat beberapa bulan terakhir supaya ringan.
+    // Tombol ini menarik data lama dari server saat dibutuhkan.
+    const older=document.createElement('button');
+    older.className='btn btn-ghost btn-sm';
+    older.style.marginLeft='6px'; older.style.whiteSpace='nowrap';
+    older.textContent='\u21ba muat bulan lama';
+    older.onclick=async function(){
+      const th=new Date().getFullYear();
+      const dari=(th-1)+'-01-01';
+      older.disabled=true; older.textContent='memuat...';
+      const ok=await ensureHistory(dari,cb);
+      older.disabled=false;
+      older.textContent=ok?'\u2713 sudah lengkap':'\u21ba muat bulan lama';
+      if(ok){el.options.length=0; cb();}
+    };
+    nav.appendChild(older);
     el.parentNode.insertBefore(nav,el.nextSibling);
   }
 }

@@ -2943,11 +2943,11 @@ function renderExpenses(){
   const fsel=document.getElementById('exp-fcat');
   const cur=fsel?fsel.value:'';
   if(fsel){
-    const cats=Array.from(new Set(S.expenses.filter(e=>e.hub===S.hub).map(e=>e.category).filter(Boolean))).sort();
+    const cats=Array.from(new Set(S.expenses.filter(expVisible).map(e=>e.category).filter(Boolean))).sort();
     fsel.innerHTML='<option value="">All Categories</option>'+cats.map(c=>'<option'+(c===cur?' selected':'')+'>'+c+'</option>').join('');
   }
   const fcat=fsel?fsel.value:'';
-  let list=S.expenses.filter(e=>e.hub===S.hub);
+  let list=S.expenses.filter(expVisible);
   if(fcat)list=list.filter(e=>e.category===fcat);
   const total=list.reduce((a,e)=>a+pn(e.amount),0);
   const today=S.expenses.filter(e=>e.hub===S.hub&&e.tgl===td()).reduce((a,e)=>a+pn(e.amount),0);
@@ -2958,11 +2958,30 @@ function renderExpenses(){
   const et=document.getElementById('exp-total');if(et)et.textContent=fR(total);
   const ec=document.getElementById('exp-cnt');if(ec)ec.textContent=list.length+' entries';
   const eto=document.getElementById('exp-today');if(eto)eto.textContent=fR(today);
+  // Pengingat: berapa expense yang hub-nya belum ditentukan
+  try{
+    const unk=S.expenses.filter(function(e){return isHubUnknown(e.hub);});
+    const uAmt=unk.reduce(function(a,e){return a+pn(e.amount);},0);
+    let ub=document.getElementById('exp-unknown-banner');
+    const tbl=document.getElementById('exp-tb');
+    if(!ub && tbl && tbl.closest('table')){
+      ub=document.createElement('div'); ub.id='exp-unknown-banner';
+      tbl.closest('table').parentNode.insertBefore(ub,tbl.closest('table'));
+    }
+    if(ub){
+      ub.innerHTML = unk.length
+        ? '<div class="alert a-warn" style="font-size:12px;margin-bottom:10px;"><b>\u2753 Hub belum ditentukan</b> \u2014 '+unk.length+' expense senilai '+fR(uAmt)+' belum jelas Jakarta atau Medan. Baris ini tampil di semua hub (ditandai merah) tapi BELUM masuk P&L per hub. Perbaiki hub-nya agar terhitung. / '+unk.length+' expenses ('+fR(uAmt)+') have no hub assigned yet \u2014 shown everywhere, excluded from per-hub P&L.</div>'
+        : '';
+    }
+  }catch(e){}
   const tb=document.getElementById('exp-tb');if(!tb)return;
   if(!list.length){tb.innerHTML='<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text3);">No expenses recorded.</td></tr>';return;}
   tb.innerHTML=list.map(function(e){
     const ct=(e.cost_type||'Fixed');const ctb=ct==='Variable'?'<span class="badge" style="background:var(--cyan);color:#000;">Variable</span>':'<span class="badge" style="background:var(--purple);color:#fff;">Fixed</span>';
-    return '<tr><td>'+e.tgl+'</td><td>'+e.hub+'</td><td>'+ctb+'</td><td><span class="badge b-yellow">'+e.category+'</span></td><td style="font-size:11px;">'+(e.description||'-')+'</td><td class="mono" style="color:var(--red);font-weight:700;">'+fR(e.amount)+'</td><td style="font-size:10px;color:var(--text3);">'+(e.by_user||'-')+'</td><td>'+(e.proof_data?'<button class="btn btn-ghost btn-sm" onclick="viewProof(\'exp\','+e.id+')">View</button>':'<span style="color:var(--red);font-size:10px;">none</span>')+'</td><td><button class="btn btn-red btn-sm" onclick="deleteExpense('+e.id+')" '+(!can('Finance')?'disabled':'')+'>Delete</button></td></tr>';
+    const hubCell=isHubUnknown(e.hub)
+      ? '<span class="badge" style="background:var(--red);color:#fff;">\u2753 UNKNOWN</span>'
+      : e.hub;
+    return '<tr'+(isHubUnknown(e.hub)?' style="background:rgba(255,0,0,.06);"':'')+'><td>'+e.tgl+'</td><td>'+hubCell+'</td><td>'+ctb+'</td><td><span class="badge b-yellow">'+e.category+'</span></td><td style="font-size:11px;">'+(e.description||'-')+'</td><td class="mono" style="color:var(--red);font-weight:700;">'+fR(e.amount)+'</td><td style="font-size:10px;color:var(--text3);">'+(e.by_user||'-')+'</td><td>'+(e.proof_data?'<button class="btn btn-ghost btn-sm" onclick="viewProof(\'exp\','+e.id+')">View</button>':'<span style="color:var(--red);font-size:10px;">none</span>')+'</td><td><button class="btn btn-red btn-sm" onclick="deleteExpense('+e.id+')" '+(!can('Finance')?'disabled':'')+'>Delete</button></td></tr>';
   }).join('');
 }
 
@@ -4779,6 +4798,15 @@ function renderExtraReport(type,hub,m,el){
 // tidak pernah punya foto bukti, jadi tidak boleh mengunci Finance.
 // Untuk mengubah masa berlaku, ganti satu tanggal di bawah ini saja.
 const PROOF_RULE_START = '2026-08-01';
+
+// ---- HUB BELUM DIKETAHUI ----
+// Expense hasil impor yang hub-nya belum bisa dipastikan diisi 'UNKNOWN'.
+// Baris UNKNOWN SELALU tampil di hub mana pun supaya tidak hilang dari
+// pandangan dan bisa diperbaiki. Tidak ikut ke total P&L per hub,
+// supaya tidak terhitung dua kali di Jakarta dan Medan.
+const HUB_UNKNOWN = 'UNKNOWN';
+function isHubUnknown(h){ return String(h||'').toUpperCase()===HUB_UNKNOWN; }
+function expVisible(e){ return e.hub===S.hub || isHubUnknown(e.hub); }
 
 // true = transaksi ini data historis, aturan 24 jam dilewati
 function isPreRuleTx(tgl){

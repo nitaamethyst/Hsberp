@@ -4628,6 +4628,8 @@ function _plData(hub,m,basis){
   // Dengan begitu jumlah P&L semua hub = total perusahaan, tidak dobel.
   const exps=S.expenses.filter(function(e){
     const milik = isHubUnknown(e.hub) ? HQ_HUB : e.hub;
+    // cost_type 'NON-PL' = PPN. Masuk neraca, BUKAN P&L.
+    if(String(e.cost_type||'').toUpperCase()==='NON-PL') return false;
     return milik===hub && _inMonth(e.tgl,m);
   });
   const byCat={};exps.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+pn(e.amount);});

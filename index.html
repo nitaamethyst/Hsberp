@@ -2964,11 +2964,12 @@ function renderKasH(){
   try{renderBank();renderNonPpn();renderKasBanks();}catch(e){}
   if(typeof _pettyItems!=='undefined'&&!_pettyItems.length){try{renderPettyItems();}catch(e){}}
   const fb=(document.getElementById('kas-bulan')||{}).value||'';
-  const reports=S.kas.filter(function(k){
-    if(!(k.hub===S.hub||isHubUnknown(k.hub))) return false;
-    if(fb && String(k.tgl).slice(0,7)!==fb) return false;
-    return true;
-  });
+  // Saldo dihitung dari SELURUH riwayat, bukan hanya bulan terpilih,
+  // supaya saldo akhir bulan lalu terbawa jadi saldo awal bulan ini.
+  // Kas kecil = SATU buku untuk seluruh perusahaan, tidak dipisah per hub.
+  // Top up bisa dari 9003 atau non-PPN BCA 86, tergantung rekening mana
+  // yang sedang ada isinya. Jadi semua laporan tampil di hub mana pun.
+  const reports=S.kas.slice();
   isiPilihanBulan('kas-bulan',S.kas.map(k=>k.tgl),renderKasH);
   const tb=document.getElementById('kas-tb');
   if(!tb)return;
@@ -2987,8 +2988,10 @@ function renderKasH(){
     baris.push({k:k,awal:awal,topup:topup,keluar:keluar,akhir:akhir});
   });
   baris.reverse();   // tampilkan terbaru di atas
+  // saringan bulan hanya menyembunyikan baris, saldo tetap berantai
+  const tampil = fb ? baris.filter(r=>String(r.k.tgl).slice(0,7)===fb) : baris;
 
-  tb.innerHTML=baris.map(function(r){
+  tb.innerHTML=tampil.map(function(r){
     const k=r.k;
     const ibPaid=S.ibs.filter(t=>t.paid_at&&t.paid_at.indexOf(k.tgl)===0&&t.hub===k.hub).reduce((a,t)=>a+pn(t.total_bayar),0);
     const obRec=S.obs.filter(t=>t.lunas_at&&t.lunas_at.indexOf(k.tgl)===0&&t.hub===k.hub).reduce((a,t)=>a+pn(t.nilai_kontrak),0);
@@ -3016,13 +3019,13 @@ function renderKasH(){
     const host=tb.closest('table'); if(!host||!host.parentNode) return;
     let box=document.getElementById('pc-saldo-box');
     if(!box){box=document.createElement('div');box.id='pc-saldo-box';host.parentNode.insertBefore(box,host);}
-    const akhir=baris.length?baris[0].akhir:0;
-    const tot=baris.reduce(function(a,r){return a+r.keluar;},0);
-    const tup=baris.reduce(function(a,r){return a+r.topup;},0);
+    const akhir=baris.length?baris[0].akhir:0;          // seluruh riwayat
+    const tot=tampil.reduce(function(a,r){return a+r.keluar;},0);
+    const tup=tampil.reduce(function(a,r){return a+r.topup;},0);
     box.innerHTML='<div class="alert '+(akhir<0?'a-warn':'a-info')+'" style="font-size:12px;margin-bottom:10px;">'
       +'<b>\ud83d\udcb5 Saldo kas kecil sekarang: '+fR(akhir)+'</b>'
       +(akhir<0?' \u26a0\ufe0f MINUS \u2014 pengeluaran melebihi top up, periksa.':'')
-      +'<br><span style="font-size:11px;">Total top up '+fR(tup)+' \u2212 total keluar '+fR(tot)+' \u00b7 '+baris.length+' hari tercatat</span></div>';
+      +'<br><span style="font-size:11px;">'+(fb?'Bulan '+fb+': ':'Seluruh riwayat: ')+'top up '+fR(tup)+' \u2212 keluar '+fR(tot)+' \u00b7 '+tampil.length+' hari'+(fb?' (saldo di atas tetap posisi terkini)':'')+'</span></div>';
   })();
 }
 

@@ -317,7 +317,7 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
     </div>
   </div>
   <div class="sect-t">Cash Report History</div>
-  <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Tanggal</th><th>Hub</th><th class="r">Saldo Awal</th><th class="r">Top Up (+)</th><th class="r">Keluar (−)</th><th class="r">Saldo Akhir</th><th class="r">Saldo Bank</th><th class="r">Purchases Paid</th><th class="r">Sales Received</th><th>By</th><th>Rincian</th></tr></thead><tbody id="kas-tb"></tbody></table></div>
+  <div style="margin:8px 0;"><label style="font-size:11px;font-weight:700;color:var(--text2);">Bulan </label><select id="kas-bulan" style="font-size:12px;padding:4px 8px;"></select></div><div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Tanggal</th><th>Hub</th><th class="r">Saldo Awal</th><th class="r">Top Up (+)</th><th class="r">Keluar (−)</th><th class="r">Saldo Akhir</th><th class="r">Saldo Bank</th><th class="r">Purchases Paid</th><th class="r">Sales Received</th><th>By</th><th>Bukti</th><th>Rincian</th></tr></thead><tbody id="kas-tb"></tbody></table></div>
 </div>
 
 <div id="tab-expenses" style="display:none">
@@ -368,6 +368,7 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
   <div class="sect-t">Expense History
     <select class="ctrl" id="exp-fcat" onchange="renderExpenses()"><option value="">All Categories</option></select>
   </div>
+  <div style="margin:8px 0;"><label style="font-size:11px;font-weight:700;color:var(--text2);">Bulan </label><select id="exp-bulan" style="font-size:12px;padding:4px 8px;"></select></div>
   <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Date</th><th>Hub</th><th>Type</th><th>Category</th><th>Description</th><th>Amount</th><th>By</th><th>Proof</th><th>Action</th></tr></thead><tbody id="exp-tb"></tbody></table></div>
 </div>
 
@@ -2875,6 +2876,60 @@ async function submitKas(){
   renderKasH();renderDash();
 }
 
+// Isi <select> bulan dari daftar tanggal. Dipakai di Cash History,
+// Expenses, Purchase, Inventory supaya daftar tidak menumpuk panjang.
+function isiPilihanBulan(elId,tanggalList,cb){
+  const el=document.getElementById(elId); if(!el) return;
+  const bulan=Array.from(new Set(tanggalList.filter(Boolean).map(t=>String(t).slice(0,7)))).sort().reverse();
+  if(el.options.length===bulan.length+1) return;
+  const keep=el.value;
+  el.innerHTML='<option value="">Semua bulan</option>'
+    +bulan.map(b=>'<option value="'+b+'"'+(keep===b?' selected':'')+'>'+b+'</option>').join('');
+  if(!el._wired){el._wired=true;el.onchange=function(){cb();};}
+}
+
+// Ubah hub satu laporan kas langsung dari tabel.
+async function setKasHub(id,hub){
+  if(!can('Finance')){toast('Finance/Admin only','err');return;}
+  const {error}=await sb.from('kas_reports').update({hub:hub}).eq('id',id);
+  if(error){toast('Gagal: '+error.message,'err');return;}
+  const k=S.kas.find(x=>String(x.id)===String(id)); if(k)k.hub=hub;
+  toast('Hub \u2192 '+hub); renderKasH();
+}
+
+// Unggah bukti untuk laporan kas lama (dikerjakan saat senggang).
+function uploadKasProof(id){
+  if(!can('Finance')){toast('Finance/Admin only','err');return;}
+  const inp=document.createElement('input');
+  inp.type='file'; inp.accept='image/*,application/pdf';
+  inp.onchange=async function(){
+    const f=inp.files&&inp.files[0]; if(!f) return;
+    if(f.size>3*1024*1024){toast('Maks 3 MB','err');return;}
+    const rd=new FileReader();
+    rd.onload=async function(){
+      const {error}=await sb.from('kas_reports')
+        .update({proof_name:f.name,proof_data:rd.result}).eq('id',id);
+      if(error){toast('Gagal: '+error.message,'err');return;}
+      const k=S.kas.find(x=>String(x.id)===String(id));
+      if(k){k.proof_name=f.name;k.proof_data=rd.result;}
+      toast('Bukti tersimpan'); renderKasH();
+    };
+    rd.readAsDataURL(f);
+  };
+  inp.click();
+}
+function viewKasProof(id){
+  const k=S.kas.find(x=>String(x.id)===String(id));
+  if(!k||!k.proof_data){toast('Belum ada bukti','err');return;}
+  document.getElementById('m-title').textContent='Bukti kas '+k.tgl;
+  document.getElementById('m-body').innerHTML=(String(k.proof_data).indexOf('application/pdf')>=0)
+    ? '<iframe src="'+k.proof_data+'" style="width:100%;height:60vh;border:0;"></iframe>'
+    : '<img src="'+k.proof_data+'" style="max-width:100%;"/>';
+  document.getElementById('m-foot-l').innerHTML='';
+  document.getElementById('m-foot-r').innerHTML='<button class="btn btn-ghost" onclick="closeModal()">Tutup</button>';
+  showModal();
+}
+
 // Rincian seluruh item petty satu hari dalam satu jendela.
 function viewPettyHari(kasId){
   const k=S.kas.find(x=>String(x.id)===String(kasId));
@@ -2908,10 +2963,16 @@ function viewPettyProof(kasId,idx){
 function renderKasH(){
   try{renderBank();renderNonPpn();renderKasBanks();}catch(e){}
   if(typeof _pettyItems!=='undefined'&&!_pettyItems.length){try{renderPettyItems();}catch(e){}}
-  const reports=S.kas.filter(k=>k.hub===S.hub||isHubUnknown(k.hub));
+  const fb=(document.getElementById('kas-bulan')||{}).value||'';
+  const reports=S.kas.filter(function(k){
+    if(!(k.hub===S.hub||isHubUnknown(k.hub))) return false;
+    if(fb && String(k.tgl).slice(0,7)!==fb) return false;
+    return true;
+  });
+  isiPilihanBulan('kas-bulan',S.kas.map(k=>k.tgl),renderKasH);
   const tb=document.getElementById('kas-tb');
   if(!tb)return;
-  if(!reports.length){tb.innerHTML='<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--text3);">Belum ada laporan kas. / No reports yet.</td></tr>';return;}
+  if(!reports.length){tb.innerHTML='<tr><td colspan="12" style="text-align:center;padding:20px;color:var(--text3);">Belum ada laporan kas. / No reports yet.</td></tr>';return;}
 
   // Buku kas kecil: saldo berjalan. Urut tanggal naik supaya
   // saldo akhir hari ini = saldo awal hari berikutnya.
@@ -2938,7 +2999,7 @@ function renderKasH(){
       : '<span style="color:var(--text3);font-size:10px;">-</span>';
     return '<tr'+(merah?' style="background:rgba(255,0,0,.10);"':(isHubUnknown(k.hub)?' style="background:rgba(255,0,0,.04);"':''))+'>'
       +'<td>'+k.tgl+'</td>'
-      +'<td>'+(isHubUnknown(k.hub)?'<span class="badge" style="background:var(--red);color:#fff;">\u2753</span>':k.hub)+'</td>'
+      +'<td><select onchange="setKasHub(\''+k.id+'\',this.value)" style="font-size:10px;padding:2px 4px;'+(isHubUnknown(k.hub)?'border-color:var(--red);color:var(--red);':'')+'">'+['UNKNOWN','Jakarta','Medan'].map(function(h){return '<option value="'+h+'"'+((k.hub===h||(h==='UNKNOWN'&&isHubUnknown(k.hub)))?' selected':'')+'>'+(h==='UNKNOWN'?'\u2753 tanpa hub':h)+'</option>';}).join('')+'</select></td>'
       +'<td class="r mono">'+fR(r.awal)+'</td>'
       +'<td class="r mono" style="color:var(--green);">'+(r.topup?'+'+fR(r.topup):'-')+'</td>'
       +'<td class="r mono" style="color:var(--red);">'+(r.keluar?'-'+fR(r.keluar):'-')+'</td>'
@@ -2946,7 +3007,7 @@ function renderKasH(){
       +'<td class="r mono" style="color:var(--text3);">'+fR(pn(k.saldo))+'</td>'
       +'<td class="r mono" style="color:var(--red);">'+fR(ibPaid)+'</td>'
       +'<td class="r mono" style="color:var(--green);">'+fR(obRec)+'</td>'
-      +'<td style="font-size:10px;color:var(--text3);">'+(k.by_user||'-')+'</td>'
+      +'<td style="font-size:10px;color:var(--text3);">'+(k.by_user||'-')+'</td>'+'<td>'+(k.proof_data?'<button class="btn btn-ghost btn-sm" onclick="viewKasProof(\''+k.id+'\')">\ud83d\udcce</button>':'<button class="btn btn-ghost btn-sm" style="color:var(--text3);" onclick="uploadKasProof(\''+k.id+'\')">+ bukti</button>')+'</td>'
       +'<td>'+rinci+'</td></tr>';
   }).join('');
 
@@ -3008,6 +3069,29 @@ async function deleteExpense(id){
   S.expenses=S.expenses.filter(e=>e.id!==id);
   renderExpenses();renderDash();toast('Expense deleted (logged)');
 }
+// Unggah bukti transfer untuk expense hasil impor rekap
+// (677 baris dari RECON tidak punya bukti - diisi belakangan).
+function uploadExpProof(id){
+  if(!can('Finance')){toast('Finance/Admin only','err');return;}
+  const inp=document.createElement('input');
+  inp.type='file'; inp.accept='image/*,application/pdf';
+  inp.onchange=async function(){
+    const f=inp.files&&inp.files[0]; if(!f) return;
+    if(f.size>3*1024*1024){toast('Maks 3 MB / max 3 MB','err');return;}
+    const rd=new FileReader();
+    rd.onload=async function(){
+      const {error}=await sb.from('expenses')
+        .update({proof_name:f.name,proof_data:rd.result}).eq('id',id);
+      if(error){toast('Gagal: '+error.message,'err');return;}
+      const e=S.expenses.find(x=>String(x.id)===String(id));
+      if(e){e.proof_name=f.name;e.proof_data=rd.result;}
+      toast('Bukti transfer tersimpan'); renderExpenses();
+    };
+    rd.readAsDataURL(f);
+  };
+  inp.click();
+}
+
 // Ubah hub satu baris expense langsung dari tabel.
 async function setExpHub(id,hub){
   if(!can('Finance')){toast('Finance/Admin only','err');return;}
@@ -3039,7 +3123,13 @@ function renderExpenses(){
     fsel.innerHTML='<option value="">All Categories</option>'+cats.map(c=>'<option'+(c===cur?' selected':'')+'>'+c+'</option>').join('');
   }
   const fcat=fsel?fsel.value:'';
-  let list=S.expenses.filter(expVisible);
+  const fbE=(document.getElementById('exp-bulan')||{}).value||'';
+  let list=S.expenses.filter(function(e){
+    if(!expVisible(e)) return false;
+    if(fbE && String(e.tgl).slice(0,7)!==fbE) return false;
+    return true;
+  });
+  isiPilihanBulan('exp-bulan',S.expenses.map(e=>e.tgl),renderExpenses);
   if(fcat)list=list.filter(e=>e.category===fcat);
   const total=list.reduce((a,e)=>a+pn(e.amount),0);
   const today=S.expenses.filter(e=>e.hub===S.hub&&e.tgl===td()).reduce((a,e)=>a+pn(e.amount),0);
@@ -3075,7 +3165,7 @@ function renderExpenses(){
       +['UNKNOWN','Jakarta','Medan'].map(function(h){
           return '<option value="'+h+'"'+((e.hub===h||(h==='UNKNOWN'&&isHubUnknown(e.hub)))?' selected':'')+'>'+(h==='UNKNOWN'?'\u2753 tanpa hub':h)+'</option>';
         }).join('')+'</select>';
-    return '<tr'+(isHubUnknown(e.hub)?' style="background:rgba(255,0,0,.06);"':'')+'><td>'+e.tgl+'</td><td>'+hubCell+'</td><td>'+ctb+'</td><td><span class="badge b-yellow">'+e.category+'</span></td><td style="font-size:11px;">'+(e.description||'-')+'</td><td class="mono" style="color:var(--red);font-weight:700;">'+fR(e.amount)+'</td><td style="font-size:10px;color:var(--text3);">'+(e.by_user||'-')+'</td><td>'+(e.proof_data?'<button class="btn btn-ghost btn-sm" onclick="viewProof(\'exp\','+e.id+')">View</button>':'<span style="color:var(--red);font-size:10px;">none</span>')+'</td><td><button class="btn btn-red btn-sm" onclick="deleteExpense('+e.id+')" '+(!can('Finance')?'disabled':'')+'>Delete</button></td></tr>';
+    return '<tr'+(isHubUnknown(e.hub)?' style="background:rgba(255,0,0,.06);"':'')+'><td>'+e.tgl+'</td><td>'+hubCell+'</td><td>'+ctb+'</td><td><span class="badge b-yellow">'+e.category+'</span></td><td style="font-size:11px;">'+(e.description||'-')+'</td><td class="mono" style="color:var(--red);font-weight:700;">'+fR(e.amount)+'</td><td style="font-size:10px;color:var(--text3);">'+(e.by_user||'-')+'</td><td>'+(e.proof_data?'<button class="btn btn-ghost btn-sm" onclick="viewProof(\'exp\','+e.id+')">Lihat</button>':'<button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:var(--red);white-space:nowrap;" onclick="uploadExpProof('+e.id+')">+ bukti trf</button>')+'</td><td><button class="btn btn-red btn-sm" onclick="deleteExpense('+e.id+')" '+(!can('Finance')?'disabled':'')+'>Delete</button></td></tr>';
   }).join('');
 }
 
@@ -3255,7 +3345,7 @@ function renderSLA(){
   S.obs.filter(t=>t.stage!=='done').forEach(function(t){const s=OB_S[obI(t.stage)];const late=obLate(t);const hrs=t.stage_start?hAgo(t.stage_start):0;rows.push({type:'JUAL',late:late,diff:(s?s.h:0)-hrs,name:t.buyer,stage:s?s.n:t.stage,role:s?s.r:'-',id:t.id,hub:t.hub,start:t.stage_start,h:s?s.h:0,fn:'openOb'});});
   rows.sort((a,b)=>(b.late-a.late)||(a.diff-b.diff));
   const tb=document.getElementById('sla-tb');
-  if(!rows.length){tb.innerHTML='<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--text3);">No transaksi aktif.</td></tr>';return;}
+  if(!rows.length){tb.innerHTML='<tr><td colspan="12" style="text-align:center;padding:24px;color:var(--text3);">No transaksi aktif.</td></tr>';return;}
   tb.innerHTML=rows.map(function(r){return '<tr><td class="mono" style="font-size:9px;">'+r.id+'</td><td><span class="badge '+(r.type==='BELI'?'b-green':'b-purple')+'">'+r.type+'</span></td><td>'+r.hub+'</td><td style="font-weight:600;">'+r.name+'</td><td>'+r.stage+'</td><td><span class="badge b-gray">'+r.role+'</span></td><td class="mono" style="font-size:10px;">'+dts(r.start)+'</td><td class="mono">'+r.h+'j</td><td class="mono" style="color:'+(r.late?'var(--red)':'var(--green)')+';">'+(r.late?'+':'-')+Math.abs(r.diff).toFixed(1)+'j</td><td><span class="badge '+(r.late?'b-red':'b-green')+'">'+(r.late?'LATE':'ON TIME')+'</span></td><td><button class="btn btn-ghost btn-sm" onclick="'+r.fn+'(\''+r.id+'\')">Open</button></td></tr>';}).join('');
 }
 

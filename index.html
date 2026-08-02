@@ -317,7 +317,7 @@ hr.dv{border:none;border-top:1px solid var(--border2);margin:10px 0;}
     </div>
   </div>
   <div class="sect-t">Cash Report History</div>
-  <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Date</th><th>Hub</th><th>Cash</th><th>Petty</th><th>Total</th><th>Purchases Paid</th><th>Sales Received</th><th>Expenses</th><th>Est. Remaining</th><th>By</th><th>Proof</th></tr></thead><tbody id="kas-tb"></tbody></table></div>
+  <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Tanggal</th><th>Hub</th><th class="r">Saldo Awal</th><th class="r">Top Up (+)</th><th class="r">Keluar (−)</th><th class="r">Saldo Akhir</th><th class="r">Saldo Bank</th><th class="r">Purchases Paid</th><th class="r">Sales Received</th><th>By</th><th>Rincian</th></tr></thead><tbody id="kas-tb"></tbody></table></div>
 </div>
 
 <div id="tab-expenses" style="display:none">
@@ -2889,16 +2889,92 @@ function viewPettyProof(kasId,idx){
 function renderKasH(){
   try{renderBank();renderNonPpn();renderKasBanks();}catch(e){}
   if(typeof _pettyItems!=='undefined'&&!_pettyItems.length){try{renderPettyItems();}catch(e){}}
-  const reports=S.kas.filter(k=>k.hub===S.hub);
+  const reports=S.kas.filter(k=>k.hub===S.hub||isHubUnknown(k.hub));
+  const tb=document.getElementById('kas-tb');
+  if(!tb)return;
+  if(!reports.length){tb.innerHTML='<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--text3);">Belum ada laporan kas. / No reports yet.</td></tr>';return;}
+
+  // Buku kas kecil: saldo berjalan. Urut tanggal naik supaya
+  // saldo akhir hari ini = saldo awal hari berikutnya.
+  const naik=reports.slice().sort(function(x,y){return String(x.tgl).localeCompare(String(y.tgl));});
+  let jalan=0; const baris=[];
+  naik.forEach(function(k){
+    const topup=pn(k.topup);
+    const keluar=pn(k.petty);
+    const awal=jalan;
+    const akhir=awal+topup-keluar;
+    jalan=akhir;
+    baris.push({k:k,awal:awal,topup:topup,keluar:keluar,akhir:akhir});
+  });
+  baris.reverse();   // tampilkan terbaru di atas
+
+  tb.innerHTML=baris.map(function(r){
+    const k=r.k;
+    const ibPaid=S.ibs.filter(t=>t.paid_at&&t.paid_at.indexOf(k.tgl)===0&&t.hub===k.hub).reduce((a,t)=>a+pn(t.total_bayar),0);
+    const obRec=S.obs.filter(t=>t.lunas_at&&t.lunas_at.indexOf(k.tgl)===0&&t.hub===k.hub).reduce((a,t)=>a+pn(t.nilai_kontrak),0);
+    const merah=r.akhir<0;
+    const rinci=(k.petty_items&&k.petty_items.length)
+      ? k.petty_items.map(function(it,ii){
+          return '<button class="btn btn-ghost btn-sm" style="margin:1px;" title="'+crmEsc(it.note||'')+'" onclick="viewPettyProof(\''+k.id+'\','+ii+')">'+(ii+1)+'</button>';
+        }).join('')
+      : '<span style="color:var(--text3);font-size:10px;">-</span>';
+    return '<tr'+(merah?' style="background:rgba(255,0,0,.10);"':(isHubUnknown(k.hub)?' style="background:rgba(255,0,0,.04);"':''))+'>'
+      +'<td>'+k.tgl+'</td>'
+      +'<td>'+(isHubUnknown(k.hub)?'<span class="badge" style="background:var(--red);color:#fff;">\u2753</span>':k.hub)+'</td>'
+      +'<td class="r mono">'+fR(r.awal)+'</td>'
+      +'<td class="r mono" style="color:var(--green);">'+(r.topup?'+'+fR(r.topup):'-')+'</td>'
+      +'<td class="r mono" style="color:var(--red);">'+(r.keluar?'-'+fR(r.keluar):'-')+'</td>'
+      +'<td class="r mono" style="font-weight:700;color:'+(merah?'var(--red)':'var(--green)')+';">'+fR(r.akhir)+(merah?' \u26a0\ufe0f':'')+'</td>'
+      +'<td class="r mono" style="color:var(--text3);">'+fR(pn(k.saldo))+'</td>'
+      +'<td class="r mono" style="color:var(--red);">'+fR(ibPaid)+'</td>'
+      +'<td class="r mono" style="color:var(--green);">'+fR(obRec)+'</td>'
+      +'<td style="font-size:10px;color:var(--text3);">'+(k.by_user||'-')+'</td>'
+      +'<td>'+rinci+'</td></tr>';
+  }).join('');
+
+  // ringkasan saldo kas kecil terkini
+  (function(){
+    const host=tb.closest('table'); if(!host||!host.parentNode) return;
+    let box=document.getElementById('pc-saldo-box');
+    if(!box){box=document.createElement('div');box.id='pc-saldo-box';host.parentNode.insertBefore(box,host);}
+    const akhir=baris.length?baris[0].akhir:0;
+    const tot=baris.reduce(function(a,r){return a+r.keluar;},0);
+    const tup=baris.reduce(function(a,r){return a+r.topup;},0);
+    box.innerHTML='<div class="alert '+(akhir<0?'a-warn':'a-info')+'" style="font-size:12px;margin-bottom:10px;">'
+      +'<b>\ud83d\udcb5 Saldo kas kecil sekarang: '+fR(akhir)+'</b>'
+      +(akhir<0?' \u26a0\ufe0f MINUS \u2014 pengeluaran melebihi top up, periksa.':'')
+      +'<br><span style="font-size:11px;">Total top up '+fR(tup)+' \u2212 total keluar '+fR(tot)+' \u00b7 '+baris.length+' hari tercatat</span></div>';
+  })();
+}
+
+function viewPettyProof(kasId,idx){
+  const k=S.kas.find(x=>String(x.id)===String(kasId));if(!k||!k.petty_items||!k.petty_items[idx]){toast('No proof','err');return;}
+  const it=k.petty_items[idx];if(!it.proof_data){toast('No proof','err');return;}
+  const isPdf=(it.proof_name||'').toLowerCase().endsWith('.pdf');
+  document.getElementById('m-title').textContent='Bukti Petty: '+(it.note||'')+' — '+fR(pn(it.amount));
+  document.getElementById('m-body').innerHTML=isPdf?'<iframe src="'+it.proof_data+'" style="width:100%;height:70vh;border:none;border-radius:8px;"></iframe>':'<img src="'+it.proof_data+'" style="width:100%;border-radius:8px;"/>';
+  document.getElementById('m-foot-l').innerHTML='';
+  document.getElementById('m-foot-r').innerHTML='<button class="btn btn-ghost" onclick="closeModal()">Close</button>';
+  showModal();
+}
+
+function renderKasH(){
+  try{renderBank();renderNonPpn();renderKasBanks();}catch(e){}
+  if(typeof _pettyItems!=='undefined'&&!_pettyItems.length){try{renderPettyItems();}catch(e){}}
+  const reports=S.kas.filter(k=>k.hub===S.hub||isHubUnknown(k.hub));
   const tb=document.getElementById('kas-tb');
   if(!reports.length){tb.innerHTML='<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--text3);">No reports yet.</td></tr>';return;}
   tb.innerHTML=reports.map(function(k){
     const total=k.saldo+k.petty;
     const ibPaid=S.ibs.filter(t=>t.paid_at&&t.paid_at.indexOf(k.tgl)===0&&t.hub===k.hub).reduce((a,t)=>a+pn(t.total_bayar),0);
     const obRec=S.obs.filter(t=>t.lunas_at&&t.lunas_at.indexOf(k.tgl)===0&&t.hub===k.hub).reduce((a,t)=>a+pn(t.nilai_kontrak),0);
-    const expDay=S.expenses.filter(e=>e.hub===k.hub&&e.tgl===k.tgl).reduce((a,e)=>a+pn(e.amount),0);
+    const expDay=S.expenses.filter(function(e){
+      const milik=isHubUnknown(e.hub)?HQ_HUB:e.hub;
+      const milikKas=isHubUnknown(k.hub)?HQ_HUB:k.hub;
+      return milik===milikKas&&e.tgl===k.tgl;
+    }).reduce((a,e)=>a+pn(e.amount),0);
     const sisa=total-ibPaid+obRec-expDay;
-    return '<tr><td>'+k.tgl+'</td><td>'+k.hub+'</td><td class="mono">'+fR(k.saldo)+'</td><td class="mono">'+fR(k.petty)+'</td><td class="mono" style="color:var(--blue);">'+fR(total)+'</td><td class="mono" style="color:var(--red);">'+fR(ibPaid)+'</td><td class="mono" style="color:var(--green);">'+fR(obRec)+'</td><td class="mono" style="color:var(--red);">'+fR(expDay)+'</td><td class="mono" style="color:'+(sisa>=0?'var(--green)':'var(--red)')+';">'+fR(sisa)+'</td><td style="font-size:10px;color:var(--text3);">'+(k.by_user||'-')+'</td><td>'+((k.petty_items&&k.petty_items.length)?k.petty_items.map(function(it,ii){return '<button class="btn btn-ghost btn-sm" style="margin:1px;" onclick="viewPettyProof(\''+k.id+'\','+ii+')">'+(ii+1)+'</button>';}).join(''):(k.proof_data?'<button class="btn btn-ghost btn-sm" onclick="viewProof(\'kas\','+k.id+')">View</button>':'<span style="color:var(--red);font-size:10px;">none</span>'))+'</td></tr>';
+    return '<tr'+(isHubUnknown(k.hub)?' style="background:rgba(255,0,0,.05);"':'')+'><td>'+k.tgl+'</td><td>'+(isHubUnknown(k.hub)?'<span class="badge" style="background:var(--red);color:#fff;">\u2753</span>':k.hub)+'</td><td class="mono">'+fR(k.saldo)+'</td><td class="mono">'+fR(k.petty)+'</td><td class="mono" style="color:var(--blue);">'+fR(total)+'</td><td class="mono" style="color:var(--red);">'+fR(ibPaid)+'</td><td class="mono" style="color:var(--green);">'+fR(obRec)+'</td><td class="mono" style="color:var(--red);">'+fR(expDay)+'</td><td class="mono" style="color:'+(sisa>=0?'var(--green)':'var(--red)')+';">'+fR(sisa)+'</td><td style="font-size:10px;color:var(--text3);">'+(k.by_user||'-')+'</td><td>'+((k.petty_items&&k.petty_items.length)?k.petty_items.map(function(it,ii){return '<button class="btn btn-ghost btn-sm" style="margin:1px;" onclick="viewPettyProof(\''+k.id+'\','+ii+')">'+(ii+1)+'</button>';}).join(''):(k.proof_data?'<button class="btn btn-ghost btn-sm" onclick="viewProof(\'kas\','+k.id+')">View</button>':'<span style="color:var(--red);font-size:10px;">none</span>'))+'</td></tr>';
   }).join('');
 }
 

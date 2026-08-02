@@ -2937,8 +2937,7 @@ async function deleteExpense(id){
 }
 function renderExpenses(){
   const dt=document.getElementById('exp-tgl');if(dt&&!dt.value)dt.value=td();
-  const _ea=document.getElementById('exp-acc');
-  if(_ea&&!_ea.options.length)_ea.innerHTML=bankOptions(_ea.value);
+  fillBankSelect(document.getElementById('exp-acc'));
   // bangun ulang opsi filter dari kategori yg ada
   const fsel=document.getElementById('exp-fcat');
   const cur=fsel?fsel.value:'';
@@ -4892,12 +4891,26 @@ function proofLockBanner(){
 // ════════════════════════════════════════════════════════
 function bankLabel(b){return (b.bank_name||'')+' '+(b.code||'')+(b.is_non_ppn?' (non-PPN)':'')+(b.acc_name?' — '+b.acc_name:'');}
 function bankOptions(selected){
+  const list=S.banks.filter(b=>b.active!==false);
+  if(!list.length){
+    return '<option value="">\u26a0\ufe0f Belum ada rekening \u2014 tambah di menu Bank / No accounts yet</option>';
+  }
   const opts=['<option value="">-- pilih rekening / select account --</option>'];
-  S.banks.filter(b=>b.active!==false).forEach(function(b){
+  list.forEach(function(b){
     const val=(b.code||b.bank_name);
     opts.push('<option value="'+val+'"'+(selected===val?' selected':'')+'>'+bankLabel(b)+'</option>');
   });
   return opts.join('');
+}
+// Isi ulang <select> rekening. Dipanggil tiap render supaya rekening yang
+// baru dimuat / baru ditambah langsung muncul, tidak cuma sekali di awal.
+function fillBankSelect(el){
+  if(!el) return;
+  const want=S.banks.filter(b=>b.active!==false).length+1;
+  if(el.options.length===want && el.options.length>1) return;  // sudah pas
+  const keep=el.value;
+  el.innerHTML=bankOptions(keep);
+  if(keep) el.value=keep;
 }
 function renderBanks(){
   const el=document.getElementById('bank-list');if(!el)return;

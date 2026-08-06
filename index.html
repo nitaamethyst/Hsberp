@@ -1057,11 +1057,13 @@ async function loadAll(){
     try{const stg=await withTimeout(sb.from('app_settings').select('*'),8000,'settings');if(stg&&!stg.error){S.settings={};(stg.data||[]).forEach(r=>{S.settings[r.key]=r.value;});}}catch(e){}
     try{
       const w2=_winStart();
-      const [cn,rv,rt,op,am,au,bk,cr,dpx,kp]=await Promise.all([
+      const [cn,rv,rt,op,oin,tls,am,au,bk,cr,dpx,kp]=await Promise.all([
         sb.from('containers').select('*').order('code',{ascending:true}),
         sb.from('receivings').select('*').gte('tgl',w2).order('tgl',{ascending:false}),
         sb.from('returns').select('*').gte('tgl',w2).order('tgl',{ascending:false}),
         sb.from('opening_stock').select('*').gte('tgl',w2).order('tgl',{ascending:false}),
+        sb.from('other_income').select('*').order('tgl',{ascending:false}),
+        sb.from('tank_losses').select('*').order('tgl',{ascending:false}),
         sb.from('ampas').select('*').gte('tgl',w2).order('tgl',{ascending:false}),
         sb.from('audit_log').select('*').order('ts',{ascending:false}).limit(200),
         sb.from('bank_accounts').select('*').order('code',{ascending:true}),
@@ -1073,6 +1075,8 @@ async function loadAll(){
       if(rv&&!rv.error)S.receivings=rv.data||[];
       if(rt&&!rt.error)S.returns=rt.data||[];
       if(op&&!op.error)S.opening=op.data||[];
+      if(oin&&!oin.error)S.otherIncome=oin.data||[];
+      if(tls&&!tls.error)S.tankLosses=tls.data||[];
       if(am&&!am.error)S.ampas=am.data||[];
       if(au&&!au.error)S.audit=au.data||[];
       if(bk&&!bk.error)S.banks=bk.data||[];
@@ -4635,8 +4639,21 @@ function _plData(hub,m,basis){
   const byCat={};exps.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+pn(e.amount);});
   const expTotal=exps.reduce((a,e)=>a+pn(e.amount),0);
   const grossProfit=revenue-cogs-lossVal-varCost;
-  const netProfit=grossProfit-expTotal;
-  return {revenue,volSold,cogs,lossTank,lossTruck,lossVal,varCost,byCat,expTotal,grossProfit,netProfit,avg,dpIn,dpEarlier,nTx:sales.length};
+  // Pendapatan lain non-UCO (pail, ampas) - tabel other_income
+  const otherInc=(S.otherIncome||[]).filter(function(o){
+    const milik=isHubUnknown(o.hub)?HQ_HUB:o.hub;
+    return milik===hub && _inMonth(o.tgl,m);
+  }).reduce((a,o)=>a+pn(o.total),0);
+  // Penalty penjualan - kolom penalty_idr di outbounds
+  const penalty=sales.reduce((a,t)=>a+pn(t.penalty_idr),0);
+  // Susut tangki dari opname Warehouse - tabel tank_losses
+  const tankLoss=(S.tankLosses||[]).filter(function(l){
+    const milik=isHubUnknown(l.hub)?HQ_HUB:l.hub;
+    return milik===hub && _inMonth(l.tgl,m);
+  }).reduce((a,l)=>a+pn(l.loss_idr),0);
+  const netProfit=grossProfit+otherInc-expTotal-penalty-tankLoss;
+  return {revenue,volSold,cogs,lossTank,lossTruck,lossVal,varCost,byCat,expTotal,
+          otherInc,penalty,tankLoss,grossProfit,netProfit,avg,dpIn,dpEarlier,nTx:sales.length};
 }
 
 function renderReports(){
@@ -4668,6 +4685,9 @@ function renderReports(){
     h+=row('COGS (FIFO per batch)',neg(dK.cogs),neg(dL.cogs),{bold:true});
     h+=row('Losses (tanki + truk)',neg(dK.lossVal),neg(dL.lossVal),{bold:true});
     h+=row('Variable Cost',neg(dK.varCost),neg(dL.varCost),{bold:true});
+    h+=row('(+) Pendapatan lain (non-UCO)',dK.otherInc?fR(dK.otherInc):'-',dL.otherInc?fR(dL.otherInc):'-');
+    h+=row('(\u2212) Penalty penjualan',neg(dK.penalty),neg(dL.penalty));
+    h+=row('(\u2212) Susut tangki (opname)',neg(dK.tankLoss),neg(dL.tankLoss));
     h+=row('GROSS PROFIT',
       '<span style="color:'+(dK.grossProfit>=0?'var(--green)':'var(--red)')+';">'+fR(dK.grossProfit)+'</span>',
       '<span style="color:'+(dL.grossProfit>=0?'var(--green)':'var(--red)')+';">'+fR(dL.grossProfit)+'</span>',{bold:true,line:true});
@@ -4745,6 +4765,9 @@ function exportReportXLS(){
       ['  Tank loss kg',dK.lossTank,d.lossTank],
       ['  Truck loss kg',dK.lossTruck,d.lossTruck],
       ['Variable cost',-dK.varCost,-d.varCost],
+      ['Pendapatan lain (non-UCO)',dK.otherInc,d.otherInc],
+      ['Penalty penjualan',-dK.penalty,-d.penalty],
+      ['Susut tangki (opname)',-dK.tankLoss,-d.tankLoss],
       ['GROSS PROFIT',dK.grossProfit,d.grossProfit],[],['EXPENSES BY CATEGORY']];
     Object.keys(d.byCat).sort().forEach(c=>rows.push([c,-d.byCat[c]]));
     rows.push(['Total Expenses',-d.expTotal]);
